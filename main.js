@@ -11,6 +11,8 @@ let db;
 let auth;
 let userId = 'anonymous'; // Default to anonymous, will be updated by auth state
 let isAuthReady = false; // Flag to indicate if Firebase auth is ready
+let quizTimerInterval; // To store the timer interval
+let quizTimeElapsed = 0; // To store elapsed time
 
 // Get environment variables for Firebase
 const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
@@ -27,7 +29,8 @@ app.currentQuiz = {
     questions: [],
     currentIndex: 0,
     userAnswers: {}, // Stores user's answers for the current quiz session
-    attempts: {} // Tracks attempts for theory questions
+    attempts: {}, // Tracks attempts for theory questions
+    selectedOptions: {} // Stores currently selected radio button for theory
 };
 app.history = []; // Stores user's quiz history
 
@@ -113,7 +116,7 @@ window.onload = () => {
 
 // --- Custom Modal Functions (replaces alert/confirm) ---
 app.showModal = (message, type, onConfirm = null, onCancel = null) => {
-    modalMessage.textContent = message;
+    modalMessage.innerHTML = message; // Use innerHTML to allow for richer content (like pre tags for code)
     modalConfirmBtn.classList.add('hidden');
     modalCancelBtn.classList.add('hidden');
     modalOkBtn.classList.add('hidden');
@@ -135,6 +138,12 @@ app.showModal = (message, type, onConfirm = null, onCancel = null) => {
             app.closeModal();
             if (onCancel) onCancel();
         };
+    } else if (type === 'LOADING') {
+        // No buttons, just a message and spinner
+        modalMessage.innerHTML = `<div class="flex flex-col items-center">
+                                    <div class="ai-loading-spinner mb-4"></div>
+                                    <p class="text-gray-700">${message}</p>
+                                  </div>`;
     }
 
     customModal.classList.add('active');
@@ -502,7 +511,7 @@ app.initialQuestions = {
             id: 'P012',
             question: 'Write a C program to check if a number `num = 17` is prime or not.',
             codeTemplate: `#include <stdio.h>\n\nint main() {\n    int num = 17;\n    int isPrime = 1; // Assume prime\n    // Write your code here\n    if (isPrime && num > 1) {\n        printf("%d is a prime number.\\n", num);\n    } else {\n        printf("%d is not a prime number.\\n", num);\n    }\n    return 0;\n}`,
-            correctAnswer: `#include <stdio.h>\n\nint main() {\n    int num = 17;\n    int isPrime = 1; // Assume prime\n\n    if (num <= 1) {\n        isPrime = 0;\n    } else {\n        for (int i = 2; i <= num / 2; i++) {\n            if (num % i == 0) {\n                isPrime = 0;\n                break;\n            }\n        }\n    }\n\n    if (isPrime && num > 1) {\n        printf("%d is a prime number.\\n", num);\n    } else {\n        printf("%d is not a prime number.\\n", num);\n    }\n    return 0;\n}`,
+            correctAnswer: `#include <stdio.h>\n\nint main() {\n    int num = 17;\n    int isPrime = 1; // Assume prime\n\n    if (num <= 1) {\n        isPrime = 0;\n    }\n    else {\n        for (int i = 2; i <= num / 2; i++) {\n            if (num % i == 0) {\n                isPrime = 0;\n                break;\n            }\n        }\n    }\n\n    if (isPrime && num > 1) {\n        printf("%d is a prime number.\\n", num);\n    } else {\n        printf("%d is not a prime number.\\n", num);\n    }\n    return 0;\n}`,
             hint: 'A prime number is only divisible by 1 and itself. Check divisibility from 2 up to `num/2`.',
             explanation: 'The program handles cases for numbers less than or equal to 1. For others, it loops from 2 up to `num/2`. If `num` is divisible by any `i`, it\'s not prime, and `isPrime` is set to 0.'
         },
@@ -589,10 +598,20 @@ app.loadHistory = async () => {
         const historyCollectionRef = collection(db, `artifacts/${appId}/users/${userId}/quizHistory`);
         onSnapshot(historyCollectionRef, (snapshot) => {
             app.history = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+            // Ensure timestamp is a Date object for sorting
+            app.history.forEach(entry => {
+                if (entry.timestamp && typeof entry.timestamp.toDate === 'function') {
+                    entry.timestamp = entry.timestamp.toDate();
+                }
+            });
             console.log('History loaded:', app.history);
             // Re-render history if on history screen
             if (mainContent.dataset.screen === 'history') {
                 app.renderHistoryScreen();
+            }
+            // Update dashboard if on dashboard screen
+            if (mainContent.dataset.screen === 'dashboard') {
+                app.renderDashboardScreen();
             }
         }, (error) => {
             console.error('Error listening to history:', error);
@@ -693,71 +712,170 @@ app.saveGeneratedQuestion = async (questionData) => {
 app.renderHomeScreen = () => {
     mainContent.dataset.screen = 'home';
     mainContent.innerHTML = `
-        <div class="flex flex-col items-center justify-center p-4 space-y-6">
-            <h2 class="text-3xl font-bold text-gray-800 mb-6 text-center">Welcome to HICKS BOZON404</h2>
+        <div class="flex flex-col items-center justify-center p-4 sm:p-6 space-y-6">
+            <h2 class="text-3xl sm:text-4xl font-bold text-gray-800 mb-6 text-center">Welcome to HICKS BOZON404</h2>
             <p class="text-lg text-gray-600 text-center max-w-md">Master C programming with theory and practical quizzes. Generate new questions anytime!</p>
 
             <div class="w-full max-w-sm flex flex-col space-y-4">
-                <button id="start-theory-quiz-btn" class="btn btn-primary w-full">Start Theory Quiz (20 Qs)</button>
-                <button id="start-practical-quiz-btn" class="btn btn-primary w-full">Start Practical Quiz (20 Qs)</button>
+                <div class="flex flex-col sm:flex-row sm:space-x-4 space-y-4 sm:space-y-0 w-full">
+                    <select id="num-questions-select" class="flex-grow p-3 border border-gray-300 rounded-xl shadow-sm focus:ring-primary focus:border-primary text-gray-700">
+                        <option value="5">5 Questions</option>
+                        <option value="10">10 Questions</option>
+                        <option value="20" selected>20 Questions</option>
+                    </select>
+                </div>
+                <button id="start-theory-quiz-btn" class="btn btn-primary w-full">Start Theory Quiz</button>
+                <button id="start-practical-quiz-btn" class="btn btn-primary w-full">Start Practical Quiz</button>
+
+                <div class="flex flex-col sm:flex-row sm:space-x-4 space-y-4 sm:space-y-0 w-full mt-4 pt-4 border-t border-gray-200">
+                    <select id="difficulty-select" class="flex-grow p-3 border border-gray-300 rounded-xl shadow-sm focus:ring-primary focus:border-primary text-gray-700">
+                        <option value="beginner">Beginner</option>
+                        <option value="intermediate" selected>Intermediate</option>
+                        <option value="advanced">Advanced</option>
+                    </select>
+                </div>
                 <button id="generate-theory-btn" class="btn btn-secondary w-full">Generate New Theory Questions</button>
                 <button id="generate-practical-btn" class="btn btn-secondary w-full">Generate New Practical Questions</button>
+                <button id="dashboard-btn" class="btn btn-secondary w-full">View Dashboard</button>
                 <button id="history-btn" class="btn btn-secondary w-full">View Quiz History</button>
             </div>
-            <p class="text-sm text-gray-500 mt-4">Your User ID: ${userId}</p>
+            <p class="text-sm text-gray-500 mt-4">Your User ID: <span class="font-mono text-xs break-all">${userId}</span></p>
         </div>
     `;
 
-    document.getElementById('start-theory-quiz-btn').addEventListener('click', () => app.startQuiz('theory'));
-    document.getElementById('start-practical-quiz-btn').addEventListener('click', () => app.startQuiz('practical'));
-    document.getElementById('generate-theory-btn').addEventListener('click', () => app.generateQuestions('theory'));
-    document.getElementById('generate-practical-btn').addEventListener('click', () => app.generateQuestions('practical'));
+    document.getElementById('start-theory-quiz-btn').addEventListener('click', () => {
+        const numQuestions = parseInt(document.getElementById('num-questions-select').value);
+        app.startQuiz('theory', numQuestions);
+    });
+    document.getElementById('start-practical-quiz-btn').addEventListener('click', () => {
+        const numQuestions = parseInt(document.getElementById('num-questions-select').value);
+        app.startQuiz('practical', numQuestions);
+    });
+    document.getElementById('generate-theory-btn').addEventListener('click', () => {
+        const difficulty = document.getElementById('difficulty-select').value;
+        app.generateQuestions('theory', difficulty);
+    });
+    document.getElementById('generate-practical-btn').addEventListener('click', () => {
+        const difficulty = document.getElementById('difficulty-select').value;
+        app.generateQuestions('practical', difficulty);
+    });
+    document.getElementById('dashboard-btn').addEventListener('click', app.renderDashboardScreen);
     document.getElementById('history-btn').addEventListener('click', app.renderHistoryScreen);
 };
+
+app.renderDashboardScreen = () => {
+    mainContent.dataset.screen = 'dashboard';
+    if (!isAuthReady) {
+        mainContent.innerHTML = `
+            <div class="p-6 text-center text-gray-600">
+                <p>Loading dashboard... Please wait for authentication.</p>
+            </div>
+        `;
+        return;
+    }
+
+    const totalAttempted = app.history.length;
+    const correctAnswers = app.history.filter(entry => entry.isCorrect).length;
+    const percentageCorrect = totalAttempted > 0 ? ((correctAnswers / totalAttempted) * 100).toFixed(1) : 0;
+
+    mainContent.innerHTML = `
+        <div class="content-padding">
+            <h2 class="text-2xl font-bold text-gray-800 mb-6 text-center">Your Dashboard</h2>
+
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
+                <div class="bg-primary text-white p-6 rounded-lg shadow-md flex flex-col items-center justify-center">
+                    <p class="text-5xl font-bold">${totalAttempted}</p>
+                    <p class="text-lg mt-2">Questions Attempted</p>
+                </div>
+                <div class="bg-secondary text-white p-6 rounded-lg shadow-md flex flex-col items-center justify-center">
+                    <p class="text-5xl font-bold">${percentageCorrect}%</p>
+                    <p class="text-lg mt-2">Correct Rate</p>
+                </div>
+            </div>
+
+            <div class="bg-gray-50 p-6 rounded-lg shadow-inner text-center text-gray-700">
+                <p class="text-lg">Keep practicing to improve your C programming skills!</p>
+            </div>
+
+            <button id="back-to-home-btn" class="btn btn-secondary w-full mt-6">Back to Home</button>
+        </div>
+    `;
+    document.getElementById('back-to-home-btn').addEventListener('click', app.renderHomeScreen);
+};
+
 
 app.renderQuizScreen = () => {
     mainContent.dataset.screen = 'quiz';
     const currentQuestion = app.currentQuiz.questions[app.currentQuiz.currentIndex];
 
     if (!currentQuestion) {
-        app.showModal('Quiz completed!', 'OK', app.renderHomeScreen);
+        clearInterval(quizTimerInterval); // Stop the timer
+        app.showModal('Quiz completed! Check your history for results.', 'OK', app.renderHomeScreen);
         return;
     }
 
     let questionHtml = '';
+    const questionNumber = app.currentQuiz.currentIndex + 1;
+    const totalQuestions = app.currentQuiz.questions.length;
+
+    // Timer display
+    const formatTime = (seconds) => {
+        const minutes = Math.floor(seconds / 60);
+        const remainingSeconds = seconds % 60;
+        return `${minutes.toString().padStart(2, '0')}:${remainingSeconds.toString().padStart(2, '0')}`;
+    };
+
+    const timerDisplay = `<div class="text-lg font-semibold text-gray-700 text-center mb-4">Time: <span id="quiz-timer">${formatTime(quizTimeElapsed)}</span></div>`;
+
     if (app.currentQuiz.type === 'theory') {
         questionHtml = `
-            <h3 class="text-xl font-semibold mb-4 text-gray-800">Question ${app.currentQuiz.currentIndex + 1}/${app.currentQuiz.questions.length} (Theory)</h3>
-            <p class="text-lg mb-6 text-gray-700">${currentQuestion.question}</p>
-            <div id="options-container" class="space-y-3 mb-6">
-                ${currentQuestion.options.map((option, index) => `
-                    <button class="option-btn btn btn-secondary w-full text-left" data-option="${option}">
-                        ${String.fromCharCode(65 + index)}. ${option}
-                    </button>
-                `).join('')}
+            <div class="bg-white p-6 rounded-xl shadow-lg mb-6">
+                <div class="flex justify-between items-center mb-4">
+                    <h3 class="text-xl font-semibold text-gray-800">Question ${questionNumber}/${totalQuestions} (Theory)</h3>
+                    ${timerDisplay}
+                </div>
+                <p class="text-lg mb-6 text-gray-700">${currentQuestion.question}</p>
+                <div id="options-container" class="space-y-3 mb-6">
+                    ${currentQuestion.options.map((option, index) => `
+                        <label class="radio-option" for="option-${index}">
+                            <input type="radio" id="option-${index}" name="quiz-option" value="${option}"
+                                ${app.currentQuiz.selectedOptions[currentQuestion.id] === option ? 'checked' : ''}
+                                ${app.currentQuiz.attempts[currentQuestion.id] >= 1 ? 'disabled' : ''}>
+                            <span class="font-medium text-gray-700">${String.fromCharCode(65 + index)}. ${option}</span>
+                        </label>
+                    `).join('')}
+                </div>
+                <div id="feedback-area" class="mt-4 p-3 rounded-lg text-white font-medium hidden"></div>
+                <div id="explanation-area" class="mt-4 p-3 bg-green-light text-greendark rounded-lg hidden"></div>
             </div>
-            <div id="feedback-area" class="mt-4 p-3 rounded-lg text-white font-medium hidden"></div>
-            <div id="explanation-area" class="mt-4 p-3 bg-blue-100 text-blue-800 rounded-lg hidden"></div>
-            <div class="flex justify-between items-center mt-6">
-                <button id="hint-btn" class="btn btn-yellow">Hint</button>
-                <button id="next-question-btn" class="btn btn-primary hidden">Next Question</button>
+            <div class="flex flex-wrap justify-between items-center mt-6 gap-4">
+                <button id="back-to-home-btn" class="btn btn-secondary flex-1 sm:flex-none">End Quiz</button>
+                <button id="hint-btn" class="btn btn-yellow flex-1 sm:flex-none">Hint</button>
+                <button id="submit-answer-btn" class="btn btn-green flex-1 sm:flex-none">Submit Answer</button>
+                <button id="next-question-btn" class="btn btn-primary flex-1 sm:flex-none hidden">Next Question</button>
             </div>
         `;
     } else { // Practical
         questionHtml = `
-            <h3 class="text-xl font-semibold mb-4 text-gray-800">Question ${app.currentQuiz.currentIndex + 1}/${app.currentQuiz.questions.length} (Practical)</h3>
-            <p class="text-lg mb-6 text-gray-700">${currentQuestion.question}</p>
-            <div class="bg-gray-100 p-4 rounded-lg mb-4">
-                <label for="code-editor" class="block text-sm font-medium text-gray-700 mb-2">Write your C code here:</label>
-                <textarea id="code-editor" class="code-editor w-full" rows="10" placeholder="Type your C code here...">${currentQuestion.codeTemplate || ''}</textarea>
+            <div class="bg-white p-6 rounded-xl shadow-lg mb-6">
+                <div class="flex justify-between items-center mb-4">
+                    <h3 class="text-xl font-semibold text-gray-800">Question ${questionNumber}/${totalQuestions} (Practical)</h3>
+                    ${timerDisplay}
+                </div>
+                <p class="text-lg mb-6 text-gray-700">${currentQuestion.question}</p>
+                <div class="bg-gray-100 p-4 rounded-lg mb-4">
+                    <label for="code-editor" class="block text-sm font-medium text-gray-700 mb-2">Write your C code here:</label>
+                    <textarea id="code-editor" class="code-editor w-full" rows="10" placeholder="Type your C code here...">${currentQuestion.codeTemplate || ''}</textarea>
+                </div>
+                <div id="feedback-area" class="mt-4 p-3 rounded-lg text-white font-medium hidden"></div>
+                <div id="explanation-area" class="mt-4 p-3 bg-green-light text-greendark rounded-lg hidden"></div>
             </div>
-            <div id="feedback-area" class="mt-4 p-3 rounded-lg text-white font-medium hidden"></div>
-            <div id="explanation-area" class="mt-4 p-3 bg-blue-100 text-blue-800 rounded-lg hidden"></div>
-            <div class="flex justify-between items-center mt-6">
-                <button id="hint-btn" class="btn btn-yellow">Hint</button>
-                <button id="give-up-btn" class="btn btn-red">Give Up</button>
-                <button id="submit-code-btn" class="btn btn-green">Submit Code</button>
-                <button id="next-question-btn" class="btn btn-primary hidden">Next Question</button>
+            <div class="flex flex-wrap justify-between items-center mt-6 gap-4">
+                <button id="back-to-home-btn" class="btn btn-secondary flex-1 sm:flex-none">End Quiz</button>
+                <button id="hint-btn" class="btn btn-yellow flex-1 sm:flex-none">Hint</button>
+                <button id="give-up-btn" class="btn btn-red flex-1 sm:flex-none">Give Up</button>
+                <button id="submit-code-btn" class="btn btn-green flex-1 sm:flex-none">Submit Code</button>
+                <button id="next-question-btn" class="btn btn-primary flex-1 sm:flex-none hidden">Next Question</button>
             </div>
         `;
     }
@@ -768,194 +886,111 @@ app.renderQuizScreen = () => {
         </div>
     `;
 
+    // Initialize/Update Timer
+    const timerElement = document.getElementById('quiz-timer');
+    if (timerElement) {
+        if (quizTimerInterval) clearInterval(quizTimerInterval); // Clear any existing timer
+        quizTimerInterval = setInterval(() => {
+            quizTimeElapsed++;
+            timerElement.textContent = formatTime(quizTimeElapsed);
+        }, 1000);
+    }
+
+
     // Add event listeners
-    if (app.currentQuiz.type === 'theory') {
-        document.querySelectorAll('.option-btn').forEach(button => {
-            button.addEventListener('click', app.handleTheoryAnswer);
+    document.getElementById('back-to-home-btn').addEventListener('click', () => {
+        app.showModal('Are you sure you want to end the current quiz? Your progress will be lost for this session.', 'CONFIRM', () => {
+            clearInterval(quizTimerInterval); // Stop the timer
+            quizTimeElapsed = 0; // Reset timer
+            app.renderHomeScreen();
         });
+    });
+
+    if (app.currentQuiz.type === 'theory') {
+        document.querySelectorAll('input[name="quiz-option"]').forEach(radio => {
+            radio.addEventListener('change', (event) => {
+                app.currentQuiz.selectedOptions[currentQuestion.id] = event.target.value;
+                // Visually highlight selected option
+                document.querySelectorAll('.radio-option').forEach(label => {
+                    label.classList.remove('option-selected');
+                });
+                if (event.target.checked) {
+                    event.target.closest('label').classList.add('option-selected');
+                }
+            });
+        });
+        document.getElementById('submit-answer-btn').addEventListener('click', app.handleTheoryAnswer);
     } else {
         document.getElementById('submit-code-btn').addEventListener('click', app.handleSubmitCode);
         document.getElementById('give-up-btn').addEventListener('click', app.handleGiveUp);
     }
     document.getElementById('hint-btn').addEventListener('click', app.showHint);
     document.getElementById('next-question-btn').addEventListener('click', app.nextQuestion);
-};
 
-app.renderHistoryScreen = () => {
-    mainContent.dataset.screen = 'history';
-    if (!isAuthReady) {
-        mainContent.innerHTML = `
-            <div class="p-6 text-center text-gray-600">
-                <p>Loading history... Please wait for authentication.</p>
-            </div>
-        `;
-        return;
-    }
+    // Initial state for buttons based on attempts
+    if (app.currentQuiz.attempts[currentQuestion.id] >= 1) {
+        // If already attempted, disable submission and show next button
+        if (app.currentQuiz.type === 'theory') {
+            document.getElementById('submit-answer-btn').classList.add('hidden');
+            document.querySelectorAll('input[name="quiz-option"]').forEach(radio => radio.disabled = true);
+            // Re-apply correct/incorrect highlighting if already answered
+            const feedbackArea = document.getElementById('feedback-area');
+            const explanationArea = document.getElementById('explanation-area');
+            feedbackArea.classList.remove('hidden');
+            explanationArea.classList.remove('hidden');
 
-    if (app.history.length === 0) {
-        mainContent.innerHTML = `
-            <div class="p-6 text-center text-gray-600">
-                <h2 class="text-2xl font-bold mb-4">Quiz History</h2>
-                <p>No quiz history available yet. Start a quiz to see your progress!</p>
-                <button id="back-to-home-btn" class="btn btn-secondary mt-6">Back to Home</button>
-            </div>
-        `;
-        document.getElementById('back-to-home-btn').addEventListener('click', app.renderHomeScreen);
-        return;
-    }
+            const userAnswer = app.currentQuiz.userAnswers[currentQuestion.id];
+            const isCorrect = (userAnswer === currentQuestion.correctAnswer);
 
-    // Sort history by timestamp descending
-    const sortedHistory = [...app.history].sort((a, b) => b.timestamp - a.timestamp);
+            feedbackArea.textContent = isCorrect ? 'Correct! Well done.' : 'Incorrect.';
+            feedbackArea.classList.add(isCorrect ? 'bg-green-500' : 'bg-red-500');
 
-    mainContent.innerHTML = `
-        <div class="content-padding">
-            <h2 class="text-2xl font-bold text-gray-800 mb-6 text-center">Quiz History</h2>
-            <div class="space-y-4">
-                ${sortedHistory.map(entry => `
-                    <div class="p-4 rounded-lg shadow-sm ${entry.isCorrect ? 'bg-green-50' : 'bg-red-50'} border ${entry.isCorrect ? 'border-green-200' : 'border-red-200'}">
-                        <p class="font-semibold text-gray-800">${entry.questionType === 'theory' ? 'Theory' : 'Practical'} Question (ID: ${entry.questionId})</p>
-                        <p class="text-sm text-gray-600">Status: <span class="font-bold ${entry.isCorrect ? 'text-green-600' : 'text-red-600'}">${entry.isCorrect ? 'Correct' : 'Incorrect'}</span></p>
-                        ${entry.userAnswer ? `<p class="text-sm text-gray-600">Your Answer: <span class="font-mono text-xs break-words">${JSON.parse(entry.userAnswer)}</span></p>` : ''}
-                        ${entry.correctAnswer ? `<p class="text-sm text-gray-600">Correct Answer: <span class="font-mono text-xs break-words">${JSON.parse(entry.correctAnswer)}</span></p>` : ''}
-                        <p class="text-xs text-gray-500">Date: ${new Date(entry.timestamp.toDate()).toLocaleString()}</p>
-                    </div>
-                `).join('')}
-            </div>
-            <button id="back-to-home-btn" class="btn btn-secondary w-full mt-6">Back to Home</button>
-        </div>
-    `;
-    document.getElementById('back-to-home-btn').addEventListener('click', app.renderHomeScreen);
-};
+            if (isCorrect) {
+                explanationArea.innerHTML = `<strong>Explanation:</strong> ${currentQuestion.explanation}`;
+            } else {
+                explanationArea.innerHTML = `<strong>Correct Answer:</strong> ${currentQuestion.correctAnswer}.<br><strong>Explanation:</strong> ${currentQuestion.explanation}`;
+            }
 
-// --- Quiz Logic ---
-
-app.startQuiz = (type) => {
-    app.currentQuiz.type = type;
-    // Shuffle questions and select the first 20 (or fewer if not enough)
-    const availableQuestions = [...app.questions[type]];
-    for (let i = availableQuestions.length - 1; i > 0; i--) {
-        const j = Math.floor(Math.random() * (i + 1));
-        [availableQuestions[i], availableQuestions[j]] = [availableQuestions[j], availableQuestions[i]];
-    }
-    app.currentQuiz.questions = availableQuestions.slice(0, 20);
-    app.currentQuiz.currentIndex = 0;
-    app.currentQuiz.userAnswers = {};
-    app.currentQuiz.attempts = {}; // Reset attempts for new quiz
-    app.renderQuizScreen();
-};
-
-app.showFeedback = (message, isCorrect) => {
-    const feedbackArea = document.getElementById('feedback-area');
-    feedbackArea.textContent = message;
-    feedbackArea.classList.remove('hidden', 'bg-green-500', 'bg-red-500');
-    feedbackArea.classList.add(isCorrect ? 'bg-green-500' : 'bg-red-500');
-    document.getElementById('next-question-btn').classList.remove('hidden');
-    document.getElementById('hint-btn').classList.add('hidden'); // Hide hint after answer
-};
-
-app.showExplanation = (explanation) => {
-    const explanationArea = document.getElementById('explanation-area');
-    explanationArea.innerHTML = `<strong>Explanation:</strong> ${explanation}`;
-    explanationArea.classList.remove('hidden');
-};
-
-app.handleTheoryAnswer = (event) => {
-    const selectedOption = event.target.dataset.option;
-    const currentQuestion = app.currentQuiz.questions[app.currentQuiz.currentIndex];
-    const feedbackArea = document.getElementById('feedback-area');
-    const optionsContainer = document.getElementById('options-container');
-
-    // Disable all option buttons after selection
-    optionsContainer.querySelectorAll('.option-btn').forEach(btn => {
-        btn.disabled = true;
-        btn.classList.remove('btn-secondary');
-        if (btn.dataset.option === currentQuestion.correctAnswer) {
-            btn.classList.add('bg-green-200', 'text-green-800'); // Highlight correct answer
-        }
-    });
-
-    if (!app.currentQuiz.attempts[currentQuestion.id]) {
-        app.currentQuiz.attempts[currentQuestion.id] = 0;
-    }
-    app.currentQuiz.attempts[currentQuestion.id]++;
-
-    const isCorrect = (selectedOption === currentQuestion.correctAnswer);
-    app.userAnswers[currentQuestion.id] = selectedOption; // Store user's last attempt
-
-    if (isCorrect) {
-        app.showFeedback('Correct! Well done.', true);
-        app.showExplanation(currentQuestion.explanation);
-        app.saveQuizResult(currentQuestion.id, 'theory', true, selectedOption, currentQuestion.correctAnswer, currentQuestion.explanation);
-    } else {
-        event.target.classList.remove('btn-secondary');
-        event.target.classList.add('bg-red-200', 'text-red-800'); // Highlight incorrect selection
-
-        if (app.currentQuiz.attempts[currentQuestion.id] >= 2) {
-            app.showFeedback('Incorrect. The correct answer was provided.', false);
-            app.showExplanation(`The correct answer is: <strong>${currentQuestion.correctAnswer}</strong>. ${currentQuestion.explanation}`);
-            app.saveQuizResult(currentQuestion.id, 'theory', false, selectedOption, currentQuestion.correctAnswer, currentQuestion.explanation);
-        } else {
-            app.showFeedback('Incorrect. Try again!', false);
-            // Re-enable buttons for another attempt
-            optionsContainer.querySelectorAll('.option-btn').forEach(btn => {
-                if (btn.dataset.option !== selectedOption) { // Only re-enable other incorrect options
-                    btn.disabled = false;
-                    btn.classList.add('btn-secondary');
-                    btn.classList.remove('bg-red-200', 'text-red-800');
+            document.querySelectorAll('.radio-option').forEach(label => {
+                const radio = label.querySelector('input[type="radio"]');
+                if (radio.value === currentQuestion.correctAnswer) {
+                    label.classList.add('option-correct');
+                } else if (radio.value === userAnswer && !isCorrect) {
+                    label.classList.add('option-incorrect');
                 }
             });
-            document.getElementById('next-question-btn').classList.add('hidden'); // Hide next button until correct or 2 attempts
-            document.getElementById('hint-btn').classList.remove('hidden'); // Show hint again
+
+        } else { // Practical
+            document.getElementById('submit-code-btn').classList.add('hidden');
+            document.getElementById('give-up-btn').classList.add('hidden');
+            const codeEditor = document.getElementById('code-editor');
+            if (codeEditor) codeEditor.disabled = true;
+
+            const feedbackArea = document.getElementById('feedback-area');
+            const explanationArea = document.getElementById('explanation-area');
+            feedbackArea.classList.remove('hidden');
+            explanationArea.classList.remove('hidden');
+
+            const userAnswer = app.currentQuiz.userAnswers[currentQuestion.id];
+            const isCorrect = (userAnswer.replace(/\s/g, '').trim() === currentQuestion.correctAnswer.replace(/\s/g, '').trim());
+
+            feedbackArea.textContent = isCorrect ? 'Correct! Your code matches the solution.' : 'You gave up or your code was incorrect.';
+            feedbackArea.classList.add(isCorrect ? 'bg-green-500' : 'bg-red-500');
+            explanationArea.innerHTML = `<strong>Correct Solution:</strong><pre class="code-editor mt-2">${currentQuestion.correctAnswer}</pre><br><strong>Explanation:</strong> ${currentQuestion.explanation}`;
         }
-    }
-};
-
-app.handleSubmitCode = () => {
-    const codeEditor = document.getElementById('code-editor');
-    const userAnswer = codeEditor.value;
-    const currentQuestion = app.currentQuiz.questions[app.currentQuiz.currentIndex];
-
-    // Simple string comparison for correctness. In a real app, this would need a C compiler/interpreter.
-    // For now, we'll strip whitespace for a more lenient comparison.
-    const normalizedUserAnswer = userAnswer.replace(/\s/g, '').trim();
-    const normalizedCorrectAnswer = currentQuestion.correctAnswer.replace(/\s/g, '').trim();
-
-    const isCorrect = (normalizedUserAnswer === normalizedCorrectAnswer);
-
-    if (isCorrect) {
-        app.showFeedback('Correct! Your code matches the solution.', true);
-        app.showExplanation(currentQuestion.explanation);
-        app.saveQuizResult(currentQuestion.id, 'practical', true, userAnswer, currentQuestion.correctAnswer, currentQuestion.explanation);
+        document.getElementById('next-question-btn').classList.remove('hidden');
+        document.getElementById('hint-btn').classList.add('hidden'); // Hide hint after answer
     } else {
-        app.showFeedback('Your code is incorrect. Keep trying or ask for a hint!', false);
+        // For fresh question, ensure buttons are visible as needed
+        if (app.currentQuiz.type === 'theory') {
+             document.getElementById('submit-answer-btn').classList.remove('hidden');
+        } else {
+            document.getElementById('submit-code-btn').classList.remove('hidden');
+            document.getElementById('give-up-btn').classList.remove('hidden');
+        }
+        document.getElementById('next-question-btn').classList.add('hidden');
         document.getElementById('hint-btn').classList.remove('hidden');
     }
-    document.getElementById('next-question-btn').classList.remove('hidden');
-    document.getElementById('submit-code-btn').classList.add('hidden'); // Hide submit after first attempt
-    document.getElementById('give-up-btn').classList.add('hidden'); // Hide give up after first attempt
-    codeEditor.disabled = true; // Disable editor after submission
-};
-
-app.handleGiveUp = () => {
-    const currentQuestion = app.currentQuiz.questions[app.currentQuiz.currentIndex];
-    const codeEditor = document.getElementById('code-editor');
-
-    app.showModal('Are you sure you want to give up? The correct answer will be revealed.', 'CONFIRM', () => {
-        app.showFeedback('You gave up. Here is the correct solution.', false);
-        app.showExplanation(`<strong>Correct Solution:</strong><pre class="code-editor mt-2">${currentQuestion.correctAnswer}</pre><br>${currentQuestion.explanation}`);
-        codeEditor.value = currentQuestion.correctAnswer;
-        codeEditor.disabled = true;
-        app.saveQuizResult(currentQuestion.id, 'practical', false, codeEditor.value, currentQuestion.correctAnswer, currentQuestion.explanation);
-        document.getElementById('next-question-btn').classList.remove('hidden');
-        document.getElementById('submit-code-btn').classList.add('hidden');
-        document.getElementById('hint-btn').classList.add('hidden');
-        document.getElementById('give-up-btn').classList.add('hidden');
-    });
-};
-
-app.showHint = () => {
-    const currentQuestion = app.currentQuiz.questions[app.currentQuiz.currentIndex];
-    app.showModal(`<strong>Hint:</strong> ${currentQuestion.hint}`, 'OK');
 };
 
 app.nextQuestion = () => {
@@ -965,25 +1000,13 @@ app.nextQuestion = () => {
 
 // --- AI Question Generation ---
 
-app.generateQuestions = async (type) => {
-    app.showModal(`Generating 20 new ${type} questions... This may take a moment.`, 'OK');
-    const loadingMessageId = 'loading-questions-modal'; // Unique ID for this modal state
-
-    // Update the modal content to show a spinner or progress if needed
-    modalMessage.innerHTML = `<div class="flex flex-col items-center">
-                                <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mb-4"></div>
-                                <p>Generating 20 new ${type} questions... This may take a moment.</p>
-                              </div>`;
-    customModal.classList.add('active'); // Ensure modal is active
+app.generateQuestions = async (type, difficulty) => {
+    app.showModal(`Generating 20 new ${difficulty} ${type} questions... This may take a moment.`, 'LOADING');
 
     try {
-        const generatedQuestions = [];
         const promptType = type === 'theory' ? 'multiple choice theory' : 'practical coding';
 
-        // Generate questions one by one or in batches if API supports
-        // For simplicity and to manage API calls, let's do one call for 20 questions
-        // The LLM will generate an array of questions.
-        const prompt = `Generate 20 unique C programming ${promptType} questions.
+        const prompt = `Generate 20 unique C programming ${difficulty} level ${promptType} questions.
         For theory questions, provide:
         - id (unique string, e.g., 'GT001')
         - question (string)
@@ -995,12 +1018,12 @@ app.generateQuestions = async (type) => {
         For practical coding questions, provide:
         - id (unique string, e.g., 'GP001')
         - question (string, describing the coding task)
-        - codeTemplate (string, basic C code structure for the user to fill, e.g., #include <stdio.h>\n\nint main() {\n    // Write your code here\n    return 0;\n})
+        - codeTemplate (string, basic C code structure for the user to fill, e.g., #include <stdio.h>\\n\\nint main() {\\n    // Write your code here\\n    return 0;\\n})
         - correctAnswer (string, the complete correct C code solution)
         - explanation (string, brief explanation of the solution)
         - hint (string, a subtle hint for coding)
 
-        Ensure the questions cover a range of C programming concepts (variables, data types, operators, control structures, arrays, strings, functions, pointers, structs, file I/O, memory management, etc.).
+        Ensure the questions cover a range of C programming concepts (variables, data types, operators, control structures, arrays, strings, functions, pointers, structs, file I/O, memory management, etc.) appropriate for a ${difficulty} level.
         The response should be a JSON array of question objects. Do NOT include any conversational text outside the JSON.`;
 
         let chatHistory = [];
@@ -1026,7 +1049,6 @@ app.generateQuestions = async (type) => {
                             "hint": { "type": "STRING" },
                             "codeTemplate": { "type": "STRING" }
                         },
-                        // Define property ordering based on type for better schema adherence
                         "propertyOrdering": type === 'theory' ?
                             ["id", "question", "options", "correctAnswer", "explanation", "hint"] :
                             ["id", "question", "codeTemplate", "correctAnswer", "explanation", "hint"]
@@ -1054,19 +1076,20 @@ app.generateQuestions = async (type) => {
 
             for (const q of newQuestions) {
                 // Assign a unique ID if the AI didn't provide one, or ensure it's unique
-                q.id = `${type.toUpperCase().charAt(0)}${Math.random().toString(36).substring(2, 9)}`;
+                // Prepend difficulty to ID for better tracking
+                q.id = `${difficulty.charAt(0).toUpperCase()}${type.toUpperCase().charAt(0)}${Math.random().toString(36).substring(2, 9)}`;
                 q.type = type; // Add type to the question object
+                q.difficulty = difficulty; // Add difficulty to the question object
 
                 // Save to Firestore and add to local app.questions
                 const savedQuestion = await app.saveGeneratedQuestion(q);
                 if (savedQuestion) {
-                    // This will be automatically updated by the onSnapshot listener for `generatedQuestions`
-                    // So no need to manually push to app.questions.theory/practical here.
+                    // onSnapshot listener will handle adding to app.questions.theory/practical
                 }
             }
-            app.showModal(`Successfully generated and added ${newQuestions.length} new ${type} questions!`, 'OK');
+            app.showModal(`Successfully generated and added ${newQuestions.length} new ${difficulty} ${type} questions!`, 'OK');
         } else {
-            throw new Error('No valid response from AI.');
+            throw new Error('No valid response from AI. Check console for details.');
         }
 
     } catch (error) {
@@ -1074,9 +1097,7 @@ app.generateQuestions = async (type) => {
         app.showModal(`Failed to generate questions: ${error.message}. Please try again.`, 'OK');
     } finally {
         // Ensure modal is closed or updated after generation attempt
-        if (customModal.classList.contains('active') && modalMessage.textContent.includes('Generating')) {
-            app.closeModal();
-        }
+        app.closeModal();
     }
 };
 

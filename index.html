@@ -7,7 +7,7 @@
     <!-- Tailwind CSS CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
-        // Configure Tailwind CSS to use 'Inter' font and custom colors if desired
+        // Configure Tailwind CSS to use 'Inter' font and custom green colors
         tailwind.config = {
             theme: {
                 extend: {
@@ -15,11 +15,15 @@
                         inter: ['Inter', 'sans-serif'],
                     },
                     colors: {
-                        primary: '#3B82F6', // A nice blue
-                        secondary: '#60A5FA', // Lighter blue
-                        accent: '#FCD34D', // Yellow for accents
+                        // Shades of Green for the primary theme
+                        primary: '#10B981', // Emerald Green
+                        secondary: '#34D399', // Medium Green
+                        accent: '#FCD34D', // Yellow for accents (unchanged, good contrast)
                         darkbg: '#1A202C', // Dark background
                         darktext: '#E2E8F0', // Light text on dark background
+                        // Additional shades for subtle variations
+                        greenlight: '#D1FAE5', // Very light green
+                        greendark: '#065F46', // Darker green
                     }
                 }
             }
@@ -30,7 +34,7 @@
     <!-- Apple Touch Icon for iOS PWA -->
     <link rel="apple-touch-icon" href="images/icon-192x192.png">
     <!-- Theme color for browser UI -->
-    <meta name="theme-color" content="#3B82F6">
+    <meta name="theme-color" content="#10B981">
     <style>
         /* Custom CSS for splash screen and general body styling */
         body {
@@ -40,8 +44,11 @@
             justify-content: center;
             align-items: center;
             min-height: 100vh;
-            background-color: #f0f2f5; /* Light grey background */
+            background-color: #e2e8f0; /* Light grey background */
             color: #333;
+            /* Ensure body adapts to content for smaller screens */
+            padding: 1rem; /* Add some padding around the app container */
+            box-sizing: border-box; /* Include padding in element's total width and height */
         }
         #splash-screen {
             position: fixed;
@@ -70,14 +77,14 @@
         /* Main app container styling */
         #app-container {
             width: 100%;
-            max-width: 600px; /* Max width for better readability on large screens */
+            max-width: 768px; /* Max width for better readability on larger screens (md breakpoint) */
             background-color: #ffffff;
-            border-radius: 1rem; /* Rounded corners */
-            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+            border-radius: 1.5rem; /* More rounded corners */
+            box-shadow: 0 15px 30px rgba(0, 0, 0, 0.15); /* Stronger shadow */
             overflow: hidden; /* Ensures rounded corners apply to children */
             display: none; /* Hidden by default, shown after splash */
             flex-direction: column;
-            min-height: 80vh; /* Ensure it takes up a good portion of the screen */
+            min-height: 90vh; /* Ensure it takes up a good portion of the screen */
         }
         /* Basic button styling for consistency */
         .btn {
@@ -103,25 +110,27 @@
             background-color: #2D2D2D; /* Dark background for code */
             color: #F8F8F2; /* Light text for code */
             padding: 1rem;
-            border-radius: 0.5rem;
+            border-radius: 0.75rem; /* Slightly more rounded */
             font-family: 'Fira Code', 'Monaco', 'Consolas', 'monospace'; /* Monospaced font */
             font-size: 0.9rem;
             line-height: 1.5;
-            min-height: 150px;
+            min-height: 180px; /* Taller editor */
             white-space: pre-wrap; /* Preserves whitespace and wraps */
             word-break: break-all; /* Breaks long words */
             overflow-x: auto; /* Enables horizontal scrolling for long lines */
             resize: vertical; /* Allow vertical resizing */
             border: 1px solid #444;
+            transition: border-color 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
         }
         .code-editor:focus {
             outline: none;
-            border-color: #60A5FA;
-            box-shadow: 0 0 0 3px rgba(96, 165, 250, 0.5);
+            border-color: #10B981; /* Green focus border */
+            box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.5); /* Green shadow on focus */
         }
         /* General content padding */
         .content-padding {
             padding: 1.5rem;
+            @apply sm:p-8; /* More padding on larger screens */
         }
         /* Modal styling */
         .modal-overlay {
@@ -130,7 +139,7 @@
             left: 0;
             width: 100%;
             height: 100%;
-            background-color: rgba(0, 0, 0, 0.6);
+            background-color: rgba(0, 0, 0, 0.7); /* Darker overlay */
             display: flex;
             justify-content: center;
             align-items: center;
@@ -146,12 +155,19 @@
         .modal-content {
             background-color: #ffffff;
             padding: 2rem;
-            border-radius: 1rem;
-            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+            border-radius: 1.5rem; /* More rounded */
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4); /* Stronger shadow */
             max-width: 90%;
-            width: 400px;
+            width: 500px; /* Wider modal */
             text-align: center;
             position: relative;
+            transform: translateY(-20px); /* Slight animation */
+            opacity: 0;
+            transition: transform 0.3s ease-out, opacity 0.3s ease-out;
+        }
+        .modal-overlay.active .modal-content {
+            transform: translateY(0);
+            opacity: 1;
         }
         .modal-close-btn {
             position: absolute;
@@ -159,9 +175,84 @@
             right: 0.75rem;
             background: none;
             border: none;
-            font-size: 1.5rem;
+            font-size: 1.8rem; /* Larger close button */
             cursor: pointer;
             color: #666;
+            transition: color 0.2s ease-in-out;
+        }
+        .modal-close-btn:hover {
+            color: #333;
+        }
+        /* Radio button styling */
+        .radio-option {
+            display: flex;
+            align-items: center;
+            padding: 0.75rem 1rem;
+            border: 1px solid #E2E8F0; /* Light border */
+            border-radius: 0.75rem;
+            cursor: pointer;
+            transition: background-color 0.2s ease-in-out, border-color 0.2s ease-in-out;
+        }
+        .radio-option:hover {
+            background-color: #F0F2F5; /* Light hover effect */
+        }
+        .radio-option input[type="radio"] {
+            margin-right: 0.75rem;
+            /* Custom radio button appearance */
+            -webkit-appearance: none;
+            -moz-appearance: none;
+            appearance: none;
+            width: 1.25rem;
+            height: 1.25rem;
+            border: 2px solid #9CA3AF; /* Gray border */
+            border-radius: 50%;
+            outline: none;
+            cursor: pointer;
+            position: relative;
+            flex-shrink: 0; /* Prevent shrinking */
+        }
+        .radio-option input[type="radio"]:checked {
+            border-color: #10B981; /* Green border when checked */
+            background-color: #10B981; /* Green background when checked */
+        }
+        .radio-option input[type="radio"]:checked::before {
+            content: '';
+            display: block;
+            width: 0.5rem;
+            height: 0.5rem;
+            background-color: #ffffff; /* White dot inside */
+            border-radius: 50%;
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+        }
+        .radio-option label {
+            flex-grow: 1; /* Allow label to take available space */
+            cursor: pointer;
+            font-size: 1.05rem;
+            color: #4A5568;
+        }
+        /* Styling for correct/incorrect answers */
+        .option-correct {
+            @apply bg-green-100 border-green-500 text-green-800;
+        }
+        .option-incorrect {
+            @apply bg-red-100 border-red-500 text-red-800;
+        }
+        .option-selected {
+             @apply bg-blue-100 border-blue-500 text-blue-800; /* Highlight selected option */
+        }
+
+        /* Loading spinner for AI generation */
+        .ai-loading-spinner {
+            border: 4px solid rgba(0, 0, 0, 0.1);
+            border-left-color: #10B981; /* Green spinner */
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 1rem auto;
         }
     </style>
 </head>
@@ -172,14 +263,14 @@
     </div>
 
     <!-- Main App Container -->
-    <div id="app-container" class="relative">
+    <div id="app-container" class="relative flex flex-col">
         <!-- Header -->
         <header class="bg-primary text-white p-4 text-center rounded-t-xl shadow-md">
-            <h1 class="text-2xl font-bold">HICKS BOZON404</h1>
+            <h1 class="text-3xl font-bold">HICKS BOZON404</h1>
         </header>
 
         <!-- Main Content Area (will be dynamically updated by JavaScript) -->
-        <main id="main-content" class="flex-grow p-6">
+        <main id="main-content" class="flex-grow p-6 sm:p-8 overflow-y-auto">
             <!-- Content will be loaded here by JavaScript -->
         </main>
 
@@ -188,7 +279,7 @@
             <p>&copy; 2025 HICKS BOZON404. All rights reserved.</p>
         </footer>
 
-        <!-- Custom Modal for alerts/confirmations -->
+        <!-- Custom Modal for alerts/confirmations/hints/explanations -->
         <div id="custom-modal" class="modal-overlay">
             <div class="modal-content">
                 <button class="modal-close-btn" onclick="app.closeModal()">&times;</button>
@@ -206,3 +297,4 @@
     <script type="module" src="main.js"></script>
 </body>
 </html>
+s
