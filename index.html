@@ -286,38 +286,1324 @@
         <h1>HICKS BOZON404</h1>
     </div>
 
-    <!-- Main App Container -->
-    <div id="app-container" class="relative flex flex-col">
-        <!-- Header -->
-        <header class="bg-primary text-white p-4 text-center rounded-t-3xl shadow-md">
-            <h1 class="text-3xl font-bold">HICKS BOZON404</h1>
-        </header>
+    <!-- Main App Container - React will render into this -->
+    <div id="app-container" class="w-full h-full flex items-center justify-center"></div>
 
-        <!-- Main Content Area (will be dynamically updated by JavaScript) -->
-        <main id="main-content" class="flex-grow p-6 sm:p-8 overflow-y-auto">
-            <!-- Content will be loaded here by JavaScript -->
-        </main>
+    <!-- React and ReactDOM CDNs -->
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <!-- Babel for JSX transformation in browser -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
 
-        <!-- Footer (optional, could be for navigation or info) -->
-        <footer id="app-footer" class="bg-gray-100 p-4 text-center text-gray-600 rounded-b-3xl shadow-inner">
-            <p>&copy; 2025 HICKS BOZON404. All rights reserved.</p>
-        </footer>
+    <!-- Main React Application Code -->
+    <script type="text/babel">
+        import React, { useState, useEffect, useCallback } from 'react';
+        import { createRoot } from 'react-dom/client'; // Import createRoot for React 18
 
-        <!-- Custom Modal for alerts/confirmations/hints/explanations -->
-        <div id="custom-modal" class="modal-overlay">
-            <div class="modal-content">
-                <button class="modal-close-btn" onclick="app.closeModal()">&times;</button>
-                <p id="modal-message" class="text-lg mb-4 text-gray-800"></p>
-                <div id="modal-actions" class="flex justify-center space-x-4 mt-6">
-                    <button id="modal-confirm-btn" class="btn btn-primary hidden">Confirm</button>
-                    <button id="modal-cancel-btn" class="btn btn-secondary hidden">Cancel</button>
-                    <button id="modal-ok-btn" class="btn btn-primary hidden">OK</button>
+        // Firebase imports - UNCOMMENTED to enable Firestore
+        import { initializeApp } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js';
+        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js';
+        import { getFirestore, doc, addDoc, onSnapshot, collection, getDocs, serverTimestamp } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js';
+
+        // Define the Firebase configuration and app ID. These are provided by the environment.
+        // These variables are automatically injected by the Canvas environment.
+        // When running locally, they will default to empty values, which is fine for local testing.
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+        let firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {};
+        const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+
+        // --- Firebase Config Fallback (CRITICAL FIX) ---
+        // If projectId is not provided by the environment, use a placeholder.
+        // This allows the app to initialize Firebase and run without crashing,
+        // though data persistence might be limited if a real project isn't linked.
+        if (!firebaseConfig.projectId) {
+            console.warn("Firebase 'projectId' not provided by environment. Using a placeholder. Data persistence might be affected.");
+            firebaseConfig = {
+                apiKey: firebaseConfig.apiKey || "placeholder-api-key",
+                authDomain: firebaseConfig.authDomain || "placeholder.firebaseapp.com",
+                projectId: firebaseConfig.projectId || "hicksbozon404-default", // Fallback projectId
+                storageBucket: firebaseConfig.storageBucket || "placeholder.appspot.com",
+                messagingSenderId: firebaseConfig.messagingSenderId || "1234567890",
+                appId: firebaseConfig.appId || "1:1234567890:web:abcdef1234567890"
+            };
+        }
+
+        // --- Sample Questions Data ---
+        // These are the initial questions available offline.
+        const initialTheoryQuestions = [
+            {
+                id: 'T001',
+                question: 'What is the primary purpose of the `main` function in a C program?',
+                options: [
+                    'To declare global variables',
+                    'To define custom data types',
+                    'The entry point of program execution',
+                    'To include header files'
+                ],
+                answer: 'The entry point of program execution',
+                explanation: 'The `main` function is where the program execution begins. Every C program must have a `main` function.',
+                hint: 'Think about where a C program always starts running.'
+            },
+            {
+                id: 'T002',
+                question: 'Which of the following is NOT a valid C data type?',
+                options: [
+                    'int',
+                    'float',
+                    'boolean',
+                    'char'
+                ],
+                answer: 'boolean',
+                explanation: 'C does not have a built-in `boolean` data type. Booleans are typically represented using `int` (0 for false, non-zero for true).',
+                hint: 'Consider how truth values are usually represented in C.'
+            },
+            {
+                id: 'T003',
+                question: 'What does `printf()` function do in C?',
+                options: [
+                    'Reads input from the user',
+                    'Allocates memory dynamically',
+                    'Prints formatted output to the console',
+                    'Performs mathematical calculations'
+                ],
+                answer: 'Prints formatted output to the console',
+                explanation: '`printf()` is a standard library function used to print formatted output to the standard output stream (usually the console).',
+                hint: 'Its name suggests its primary action.'
+            },
+            {
+                id: 'T004',
+                question: 'Which header file is necessary for using `printf()` and `scanf()`?',
+                options: [
+                    'stdio.h',
+                    'stdlib.h',
+                    'string.h',
+                    'math.h'
+                ],
+                answer: 'stdio.h',
+                explanation: '`stdio.h` (Standard Input/Output Header) contains declarations for input/output functions like `printf()` and `scanf()`.',
+                hint: 'Think about standard input and output operations.'
+            },
+            {
+                id: 'T005',
+                question: 'What is the purpose of the `scanf()` function?',
+                options: [
+                    'To print output to a file',
+                    'To read formatted input from the console',
+                    'To write data to a database',
+                    'To concatenate strings'
+                ],
+                answer: 'To read formatted input from the console',
+                explanation: '`scanf()` is used to read formatted input from the standard input stream (usually the keyboard).',
+                hint: 'It\'s the counterpart to `printf()` for input.'
+            },
+            {
+                id: 'T006',
+                question: 'What is a pointer in C?',
+                options: [
+                    'A variable that stores a character',
+                    'A variable that stores the memory address of another variable',
+                    'A function that returns an integer',
+                    'A type of loop control structure'
+                ],
+                answer: 'A variable that stores the memory address of another variable',
+                explanation: 'A pointer is a powerful feature in C that allows direct memory manipulation by storing the memory address of another variable.',
+                hint: 'It "points" to something in memory.'
+            },
+            {
+                id: 'T007',
+                question: 'Which operator is used to get the address of a variable?',
+                options: [
+                    '* (dereference operator)',
+                    '& (address-of operator)',
+                    '-> (arrow operator)',
+                    '. (dot operator)'
+                ],
+                answer: '& (address-of operator)',
+                explanation: 'The `&` operator, also known as the address-of operator, returns the memory address of its operand.',
+                hint: 'It looks like an ampersand.'
+            },
+            {
+                id: 'T008',
+                question: 'Which operator is used to dereference a pointer (access the value at the address it points to)?',
+                options: [
+                    '& (address-of operator)',
+                    '* (dereference operator)',
+                    '++ (increment operator)',
+                    '== (equality operator)'
+                ],
+                answer: '* (dereference operator)',
+                explanation: 'The `*` operator, when used with a pointer, dereferences it, meaning it accesses the value stored at the memory address the pointer holds.',
+                hint: 'It\'s the same symbol used to declare a pointer.'
+            },
+            {
+                id: 'T009',
+                question: 'What is the correct way to declare an integer pointer `ptr`?',
+                options: [
+                    'int ptr;',
+                    'int *ptr;',
+                    'pointer int ptr;',
+                    'int &ptr;'
+                ],
+                answer: 'int *ptr;',
+                explanation: 'To declare a pointer, the asterisk `*` is used before the pointer variable name, indicating that it will store an address of a variable of the specified type.',
+                hint: 'The asterisk signifies a pointer declaration.'
+            },
+            {
+                id: 'T010',
+                question: 'What is the purpose of the `for` loop in C?',
+                options: [
+                    'To make decisions based on conditions',
+                    'To execute a block of code repeatedly a fixed number of times',
+                    'To define a new function',
+                    'To handle exceptions'
+                ],
+                answer: 'To execute a block of code repeatedly a fixed number of times',
+                explanation: 'The `for` loop is a control flow statement that allows code to be executed repeatedly based on a counter or a condition, typically when the number of iterations is known.',
+                hint: 'It\'s used for iteration when you know how many times you want to repeat.'
+            },
+            {
+                id: 'T011',
+                question: 'What is the difference between `while` and `do-while` loops?',
+                options: [
+                    '`while` always executes at least once, `do-while` may not.',
+                    '`do-while` always executes at least once, `while` may not.',
+                    'There is no difference, they are interchangeable.',
+                    '`while` is for fixed iterations, `do-while` is for indefinite iterations.'
+                ],
+                answer: '`do-while` always executes at least once, `while` may not.',
+                explanation: 'The `do-while` loop checks its condition after executing the loop body, guaranteeing at least one execution. The `while` loop checks its condition before, so it might not execute at all.',
+                hint: 'Consider when the condition is checked for each loop type.'
+            },
+            {
+                id: 'T012',
+                question: 'What is an array in C?',
+                options: [
+                    'A collection of different data types',
+                    'A collection of variables of the same data type stored at contiguous memory locations',
+                    'A user-defined data type',
+                    'A function that returns multiple values'
+                ],
+                answer: 'A collection of variables of the same data type stored at contiguous memory locations',
+                explanation: 'An array is a fixed-size sequential collection of elements of the same data type, stored in contiguous memory locations.',
+                hint: 'It\'s a way to store multiple values of the same kind.'
+            },
+            {
+                id: 'T013',
+                question: 'How do you declare an array named `numbers` that can hold 10 integers?',
+                options: [
+                    'int numbers[10];',
+                    'int numbers = 10;',
+                    'array numbers[10];',
+                    'int[] numbers = 10;'
+                ],
+                answer: 'int numbers[10];',
+                explanation: 'Arrays are declared by specifying the data type, followed by the array name, and then the size in square brackets `[]`.',
+                hint: 'The size goes inside square brackets.'
+            },
+            {
+                id: 'T014',
+                question: 'What is the index of the first element in a C array?',
+                options: [
+                    '1',
+                    '0',
+                    'Any positive integer',
+                    'The size of the array'
+                ],
+                answer: '0',
+                explanation: 'C arrays are zero-indexed, meaning the first element is at index 0, the second at index 1, and so on.',
+                hint: 'Most programming languages start counting from this number for arrays.'
+            },
+            {
+                id: 'T015',
+                question: 'What is a string in C?',
+                options: [
+                    'A sequence of integers',
+                    'A collection of floating-point numbers',
+                    'An array of characters terminated by a null character (\\0)',
+                    'A special type of function'
+                ],
+                answer: 'An array of characters terminated by a null character (\\0)',
+                explanation: 'In C, strings are essentially character arrays that are null-terminated, meaning they end with a special character `\\0` to mark the end of the string.',
+                hint: 'It\'s an array, but with a specific ending character.'
+            },
+            {
+                id: 'T016',
+                question: 'Which function is used to compare two strings in C?',
+                options: [
+                    'strcpy()',
+                    'strcat()',
+                    'strlen()',
+                    'strcmp()'
+                ],
+                answer: 'strcmp()',
+                explanation: 'The `strcmp()` function (from `string.h`) compares two strings lexicographically and returns 0 if they are equal, a negative value if the first is less than the second, and a positive value otherwise.',
+                hint: 'Its name suggests "string comparison".'
+            },
+            {
+                id: 'T017',
+                question: 'What is the purpose of `malloc()` and `free()` functions?',
+                options: [
+                    'For file input/output operations',
+                    'For dynamic memory allocation and deallocation',
+                    'For string manipulation',
+                    'For mathematical calculations'
+                ],
+                answer: 'For dynamic memory allocation and deallocation',
+                explanation: '`malloc()` (memory allocation) is used to allocate a block of memory dynamically during program execution, and `free()` is used to deallocate that memory, preventing memory leaks.',
+                hint: 'They deal with memory management during runtime.'
+            },
+            {
+                id: 'T018',
+                question: 'What is a `struct` in C?',
+                options: [
+                    'A built-in data type like `int` or `char`',
+                    'A collection of variables of different data types under a single name',
+                    'A function that returns a pointer',
+                    'A way to define constants'
+                ],
+                answer: 'A collection of variables of different data types under a single name',
+                explanation: 'A `struct` (structure) is a user-defined data type that allows you to combine items of different data types into a single unit.',
+                hint: 'It allows you to group related but different types of data.'
+            },
+            {
+                id: 'T019',
+                question: 'What is recursion in C programming?',
+                options: [
+                    'A loop that never ends',
+                    'A function calling itself directly or indirectly',
+                    'A way to define macros',
+                    'A method for error handling'
+                ],
+                answer: 'A function calling itself directly or indirectly',
+                explanation: 'Recursion is a programming technique where a function calls itself to solve a problem, typically breaking it down into smaller, similar subproblems.',
+                hint: 'Think about a function that repeats its own action.'
+            },
+            {
+                id: 'T020',
+                question: 'What is the role of `break` statement in loops?',
+                options: [
+                    'To skip the current iteration and continue with the next',
+                    'To terminate the loop immediately',
+                    'To restart the loop from the beginning',
+                    'To define a new loop'
+                ],
+                answer: 'To terminate the loop immediately',
+                explanation: 'The `break` statement is used to exit from a loop (for, while, do-while) or a `switch` statement immediately, transferring control to the statement immediately following the loop/switch.',
+                hint: 'It stops the loop entirely.'
+            }
+        ];
+
+        const initialCodingChallenges = [
+            {
+                id: 'P001',
+                question: 'Write a C program to print "Hello, HICKS BOZON404!" to the console.',
+                codeTemplate: `#include <stdio.h>\n\nint main() {\n    // Write your code here\n    return 0;\n}`,
+                correctAnswer: `#include <stdio.h>\n\nint main() {\n    printf("Hello, HICKS BOZON404!\\n");\n    return 0;\n}`,
+                hint: 'Use the `printf` function from the `stdio.h` library. Remember to include a newline character.',
+                explanation: 'This program includes the `stdio.h` header for input/output functions. The `main` function is the entry point. `printf()` is used to display the string, and `\\n` adds a newline. `return 0;` indicates successful execution.'
+            },
+            {
+                id: 'P002',
+                question: 'Write a C program to add two integers, `a = 5` and `b = 10`, and print their sum.',
+                codeTemplate: `#include <stdio.h>\n\nint main() {\n    int a = 5;\n    int b = 10;\n    // Write your code here\n    return 0;\n}`,
+                correctAnswer: `#include <stdio.h>\n\nint main() {\n    int a = 5;\n    int b = 10;\n    int sum = a + b;\n    printf("Sum: %d\\n", sum);\n    return 0;\n}`,
+                hint: 'Declare a variable to store the sum. Use `printf` with a format specifier for integers (%d).',
+                explanation: 'Variables `a` and `b` are initialized. Their sum is stored in `sum`. `printf` displays the result using `%d` as a placeholder for the integer value of `sum`.'
+            },
+            {
+                id: 'P003',
+                question: 'Write a C program to find the larger of two numbers, `x = 7` and `y = 3`. Print the larger number.',
+                codeTemplate: `#include <stdio.h>\n\nint main() {\n    int x = 7;\n    int y = 3;\n    // Write your code here\n    return 0;\n}`,
+                correctAnswer: `#include <stdio.h>\n\nint main() {\n    int x = 7;\n    int y = 3;\n    if (x > y) {\n        printf("Larger number: %d\\n", x);\n    } else {\n        printf("Larger number: %d\\n", y);\n    }\n    return 0;\n}`,
+                hint: 'Use an `if-else` statement to compare `x` and `y`.',
+                explanation: 'An `if-else` statement checks if `x` is greater than `y`. The corresponding `printf` statement then displays the larger value.'
+            },
+            {
+                id: 'P004',
+                question: 'Write a C program to check if a given integer `num = 6` is even or odd. Print "Even" or "Odd".',
+                codeTemplate: `#include <stdio.h>\n\nint main() {\n    int num = 6;\n    // Write your code here\n    return 0;\n}`,
+                correctAnswer: `#include <stdio.h>\n\nint main() {\n    int num = 6;\n    if (num % 2 == 0) {\n        printf("Even\\n");\n    } else {\n        printf("Odd\\n");\n    }\n    return 0;\n}`,
+                hint: 'Use the modulo operator (`%`) to check for divisibility by 2.',
+                explanation: 'The modulo operator (`%`) gives the remainder of a division. If `num % 2` is 0, the number is even; otherwise, it\'s odd.'
+            },
+            {
+                id: 'P005',
+                question: 'Write a C program to print numbers from 1 to 5 using a `for` loop.',
+                codeTemplate: `#include <stdio.h>\n\nint main() {\n    // Write your code here\n    return 0;\n}`,
+                correctAnswer: `#include <stdio.h>\n\nint main() {\n    for (int i = 1; i <= 5; i++) {\n        printf("%d\\n", i);\n    }\n    return 0;\n}`,
+                hint: 'Initialize a loop counter, set a condition, and increment the counter.',
+                explanation: 'The `for` loop initializes `i` to 1, continues as long as `i` is less than or equal to 5, and increments `i` in each iteration. `printf` prints the value of `i`.'
+            },
+            {
+                id: 'P006',
+                question: 'Write a C program to calculate the factorial of a number `n = 4`.',
+                codeTemplate: `#include <stdio.h>\n\nint main() {\n    int n = 4;\n    long long factorial = 1;\n    // Write your code here\n    printf("Factorial of %d = %lld\\n", n, factorial);\n    return 0;\n}`,
+                correctAnswer: `#include <stdio.h>\n\nint main() {\n    int n = 4;\n    long long factorial = 1;\n    for (int i = 1; i <= n; i++) {\n        factorial *= i;\n    }\n    printf("Factorial of %d = %lld\\n", n, factorial);\n    return 0;\n}`,
+                hint: 'Use a loop to multiply numbers from 1 to `n`. Use `long long` for `factorial` to handle larger values.',
+                explanation: 'A `for` loop iterates from 1 to `n`, multiplying `factorial` by the current iteration number. `%lld` is used for printing `long long`.'
+            },
+            {
+                id: 'P007',
+                question: 'Write a C program to reverse a given string "hello".',
+                codeTemplate: `#include <stdio.h>\n#include <string.h>\n\nint main() {\n    char str[] = "hello";\n    // Write your code here\n    printf("Reversed string: %s\\n", str);\n    return 0;\n}`,
+                correctAnswer: `#include <stdio.h>\n#include <string.h>\n\nint main() {\n    char str[] = "hello";\n    int length = strlen(str);\n    for (int i = 0; i < length / 2; i++) {\n        char temp = str[i];\n        str[i] = str[length - 1 - i];\n        str[length - 1 - i] = temp;\n    }\n    printf("Reversed string: %s\\n", str);\n    return 0;\n}`,
+                hint: 'You\'ll need `string.h` for `strlen`. Swap characters from the beginning and end of the string.',
+                explanation: 'The program uses `strlen()` to get the string length. A `for` loop iterates up to half the length, swapping characters from opposite ends of the string using a temporary variable.'
+            },
+            {
+                id: 'P008',
+                question: 'Write a C program to calculate the sum of elements in an array `int arr[] = {1, 2, 3, 4, 5};`.',
+                codeTemplate: `#include <stdio.h>\n\nint main() {\n    int arr[] = {1, 2, 3, 4, 5};\n    int n = sizeof(arr) / sizeof(arr[0]);\n    int sum = 0;\n    // Write your code here\n    printf("Sum of array elements: %d\\n", sum);\n    return 0;\n}`,
+                correctAnswer: `#include <stdio.h>\n\nint main() {\n    int arr[] = {1, 2, 3, 4, 5};\n    int n = sizeof(arr) / sizeof(arr[0]);\n    int sum = 0;\n    for (int i = 0; i < n; i++) {\n        sum += arr[i];\n    }\n    printf("Sum of array elements: %d\\n", sum);\n    return 0;\n}`,
+                hint: 'Loop through the array elements and add each to a `sum` variable.',
+                explanation: 'A `for` loop iterates from index 0 to `n-1` (where `n` is the array size). In each iteration, the current array element is added to `sum`.'
+            },
+            {
+                id: 'P009',
+                question: 'Write a C program to swap two numbers `a = 10` and `b = 20` using a temporary variable. Print `a` and `b` after swapping.',
+                codeTemplate: `#include <stdio.h>\n\nint main() {\n    int a = 10;\n    int b = 20;\n    // Write your code here\n    printf("After swap: a = %d, b = %d\\n", a, b);\n    return 0;\n}`,
+                correctAnswer: `#include <stdio.h>\n\nint main() {\n    int a = 10;\n    int b = 20;\n    int temp = a;\n    a = b;\n    b = temp;\n    printf("After swap: a = %d, b = %d\\n", a, b);\n    return 0;\n}`,
+                hint: 'Use a third variable to temporarily hold one of the values.',
+                explanation: 'A `temp` variable stores the value of `a`. Then `a` is assigned `b`\'s value, and `b` is assigned `temp`\'s (original `a`\'s) value, effectively swapping them.'
+            },
+            {
+                id: 'P010',
+                question: 'Write a C program to find the largest element in an array `int arr[] = {12, 45, 2, 41, 9};`.',
+                codeTemplate: `#include <stdio.h>\n\nint main() {\n    int arr[] = {12, 45, 2, 41, 9};\n    int n = sizeof(arr) / sizeof(arr[0]);\n    int max = arr[0];\n    // Write your code here\n    printf("Largest element: %d\\n", max);\n    return 0;\n}`,
+                correctAnswer: `#include <stdio.h>\n\nint main() {\n    int arr[] = {12, 45, 2, 41, 9};\n    int n = sizeof(arr) / sizeof(arr[0]);\n    int max = arr[0];\n    for (int i = 1; i < n; i++) {\n        if (arr[i] > max) {\n            max = arr[i];\n        }\n    }\n    printf("Largest element: %d\\n", max);\n    return 0;\n}`,
+                hint: 'Assume the first element is the largest, then iterate and compare with subsequent elements.',
+                explanation: 'The program initializes `max` with the first element. It then iterates through the rest of the array, updating `max` whenever a larger element is found.'
+            },
+            {
+                id: 'P011',
+                question: 'Write a C program to print the Fibonacci series up to 5 terms (0, 1, 1, 2, 3).',
+                codeTemplate: `#include <stdio.h>\n\nint main() {\n    int n = 5;\n    int t1 = 0, t2 = 1;\n    int nextTerm;\n    printf("Fibonacci Series: ");\n    // Write your code here\n    printf("\\n");\n    return 0;\n}`,
+                correctAnswer: `#include <stdio.h>\n\nint main() {\n    int n = 5;\n    int t1 = 0, t2 = 1;\n    int nextTerm;\n\n    for (int i = 1; i <= n; ++i) {\n        printf("%d, ", t1);\n        nextTerm = t1 + t2;\n        t1 = t2;\n        t2 = nextTerm;\n    }\n    printf("\\n");\n    return 0;\n}`,
+                hint: 'The next term is the sum of the previous two. Start with 0 and 1.',
+                explanation: 'The program initializes `t1` and `t2` to 0 and 1. It then loops `n` times, printing `t1`, calculating the `nextTerm`, and updating `t1` and `t2` for the next iteration.'
+            },
+            {
+                id: 'P012',
+                question: 'Write a C program to check if a number `num = 17` is prime or not.',
+                codeTemplate: `#include <stdio.h>\n\nint main() {\n    int num = 17;\n    int isPrime = 1; // Assume prime\n    // Write your code here\n    if (isPrime && num > 1) {\n        printf("%d is a prime number.\\n", num);\n    } else {\n        printf("%d is not a prime number.\\n", num);\n    }\n    return 0;\n}`,
+                correctAnswer: `#include <stdio.h>\n\nint main() {\n    int num = 17;\n    int isPrime = 1; // Assume prime\n\n    if (num <= 1) {\n        isPrime = 0;\n    }\n    else {\n        for (int i = 2; i <= num / 2; i++) {\n            if (num % i == 0) {\n                isPrime = 0;\n                break;\n            }\n        }\n    }\n\n    if (isPrime && num > 1) {\n        printf("%d is a prime number.\\n", num);\n    } else {\n        printf("%d is not a prime number.\\n", num);\n    }\n    return 0;\n}`,
+                hint: 'A prime number is only divisible by 1 and itself. Check divisibility from 2 up to `num/2`.',
+                explanation: 'The program handles cases for numbers less than or equal to 1. For others, it loops from 2 up to `num/2`. If `num` is divisible by any `i`, it\'s not prime, and `isPrime` is set to 0.'
+            },
+            {
+                id: 'P013',
+                question: 'Write a C program to calculate the sum of digits of a number `num = 123`.',
+                codeTemplate: `#include <stdio.h>\n\nint main() {\n    int num = 123;\n    int sum = 0;\n    // Write your code here\n    printf("Sum of digits: %d\\n", sum);\n    return 0;\n}`,
+                correctAnswer: `#include <stdio.h>\n\nint main() {\n    int num = 123;\n    int sum = 0;\n    int originalNum = num;\n\n    while (num > 0) {\n        int digit = num % 10;\n        sum += digit;\n        num /= 10;\n    }\n\n    printf("Sum of digits of %d: %d\\n", originalNum, sum);\n    return 0;\n}`,
+                hint: 'Use a `while` loop. Extract the last digit using modulo 10, add it to sum, and then divide the number by 10.',
+                explanation: 'The `while` loop continues as long as `num` is greater than 0. In each iteration, it extracts the last digit using `% 10`, adds it to `sum`, and then removes the last digit by integer division (`/= 10`).'
+            },
+            {
+                id: 'P014',
+                question: 'Write a C program to convert a given temperature from Celsius to Fahrenheit. Celsius `C = 25`. Formula: $F = (C * 9/5) + 32$.',
+                codeTemplate: `#include <stdio.h>\n\nint main() {\n    float celsius = 25.0;\n    float fahrenheit;\n    // Write your code here\n    printf("%.2f Celsius is %.2f Fahrenheit\\n", celsius, fahrenheit);\n    return 0;\n}`,
+                correctAnswer: `#include <stdio.h>\n\nint main() {\n    float celsius = 25.0;\n    float fahrenheit;\n    fahrenheit = (celsius * 9/5) + 32;\n    printf("%.2f Celsius is %.2f Fahrenheit\\n", celsius, fahrenheit);\n    return 0;\n}`,
+                hint: 'Apply the given formula directly. Use `float` for precision.',
+                explanation: 'The program directly applies the conversion formula. `float` data type is used for `celsius` and `fahrenheit` to handle decimal values, and `%.2f` is used in `printf` to format the output to two decimal places.'
+            },
+            {
+                id: 'P015',
+                question: 'Write a C program to find the average of three numbers `a = 10, b = 20, c = 30`.',
+                codeTemplate: `#include <stdio.h>\n\nint main() {\n    int a = 10, b = 20, c = 30;\n    float average;\n    // Write your code here\n    printf("Average: %.2f\\n", average);\n    return 0;\n}`,
+                correctAnswer: `#include <stdio.h>\n\nint main() {\n    int a = 10, b = 20, c = 30;\n    float average;\n    average = (float)(a + b + c) / 3;\n    printf("Average: %.2f\\n", average);\n    return 0;\n}`,
+                hint: 'Sum the numbers and divide by 3. Remember to cast to `float` for accurate division.',
+                explanation: 'The sum of `a`, `b`, and `c` is calculated. This sum is then explicitly cast to `float` before dividing by 3 to ensure floating-point division and an accurate average. `%.2f` formats the output.'
+            },
+            {
+                id: 'P016',
+                question: 'Write a C program to check if a character `ch = \'A\'` is a vowel or a consonant.',
+                codeTemplate: `#include <stdio.h>\n\nint main() {\n    char ch = 'A';\n    // Write your code here\n    return 0;\n}`,
+                correctAnswer: `#include <stdio.h>\n\nint main() {\n    char ch = 'A';\n\n    if (ch == 'a' || ch == 'e' || ch == 'i' || ch == 'o' || ch == 'u' ||\n        ch == 'A' || ch == 'E' || ch == 'I' || ch == 'O' || ch == 'U') {\n        printf("%c is a vowel.\\n", ch);\n    } else if ((ch >= 'a' && ch <= 'z') || (ch >= 'A' && ch <= 'Z')) {\n        printf("%c is a consonant.\\n", ch);\n    }\n    else {\n        printf("%c is not an alphabet.\\n", ch);\n    }\n    return 0;\n}`,
+                hint: 'Use `if-else if` statements and logical OR (`||`) to check for both lowercase and uppercase vowels.',
+                explanation: 'The program uses `if-else if` to check if `ch` matches any vowel (case-insensitively). If not a vowel, it checks if it\'s an alphabet character before declaring it a consonant.'
+            },
+            {
+                id: 'P017',
+                question: 'Write a C program to print numbers from 10 down to 1 using a `while` loop.',
+                codeTemplate: `#include <stdio.h>\n\nint main() {\n    int i = 10;\n    // Write your code here\n    return 0;\n}`,
+                correctAnswer: `#include <stdio.h>\n\nint main() {\n    int i = 10;\n    while (i >= 1) {\n        printf("%d\\n", i);\n        i--;\n    }\n    return 0;\n}`,
+                hint: 'Initialize a counter and decrement it until it reaches 1.',
+                explanation: 'A `while` loop continues as long as `i` is greater than or equal to 1. In each iteration, `i` is printed, and then decremented.'
+            },
+            {
+                id: 'P018',
+                question: 'Write a C program to calculate the power of a number `base = 2`, `exponent = 3`. (i.e., $2^3 = 8$).',
+                codeTemplate: `#include <stdio.h>\n\nint main() {\n    int base = 2;\n    int exponent = 3;\n    long long result = 1;\n    // Write your code here\n    printf("%d^%d = %lld\\n", base, exponent, result);\n    return 0;\n}`,
+                correctAnswer: `#include <stdio.h>\n\nint main() {\n    int base = 2;\n    int exponent = 3;\n    long long result = 1;\n\n    for (int i = 0; i < exponent; i++) {\n        result *= base;\n    }\n\n    printf("%d^%d = %lld\\n", base, exponent, result);\n    return 0;\n}`,
+                hint: 'Use a loop that runs `exponent` times, multiplying `result` by `base` in each iteration.',
+                explanation: 'A `for` loop iterates `exponent` times. In each iteration, `result` is multiplied by `base`, effectively calculating `base` raised to the `exponent` power.'
+            },
+            {
+                id: 'P019',
+                question: 'Write a C program to check if a year `year = 2024` is a leap year. (A leap year is divisible by 4, but not by 100 unless it is also divisible by 400).',
+                codeTemplate: `#include <stdio.h>\n\nint main() {\n    int year = 2024;\n    // Write your code here\n    return 0;\n}`,
+                correctAnswer: `#include <stdio.h>\n\nint main() {\n    int year = 2024;\n\n    if ((year % 4 == 0 && year % 100 != 0) || (year % 400 == 0)) {\n        printf("%d is a leap year.\\n", year);\n    } else {\n        printf("%d is not a leap year.\\n", year);\n    }\n    return 0;\n}`,
+                hint: 'Use logical operators (`&&`, `||`) to implement the leap year conditions.',
+                explanation: 'The program uses a conditional statement to check the leap year rules: divisible by 4 AND not by 100, OR divisible by 400. If either condition is true, it\'s a leap year.'
+            },
+            {
+                id: 'P020',
+                question: 'Write a C program to print the multiplication table of a number `num = 7` up to 10.',
+                codeTemplate: `#include <stdio.h>\n\nint main() {\n    int num = 7;\n    // Write your code here\n    return 0;\n}`,
+                correctAnswer: `#include <stdio.h>\n\nint main() {\n    int num = 7;\n    printf("Multiplication Table of %d:\\n", num);\n    for (int i = 1; i <= 10; i++) {\n        printf("%d x %d = %d\\n", num, i, num * i);\n    }\n    return 0;\n}`,
+                hint: 'Use a `for` loop to iterate from 1 to 10 and print the product.',
+                explanation: 'A `for` loop iterates from 1 to 10. In each iteration, it prints the multiplication expression and its result using `printf`.'
+            }
+        ];
+
+        // Custom Modal Component for alerts
+        function Modal({ message, onClose, type = 'OK', onConfirm = null, onCancel = null }) {
+            return (
+                <div className="fixed inset-0 bg-gray-600 bg-opacity-75 flex items-center justify-center z-50 p-4">
+                    <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl p-6 max-w-sm w-full text-center">
+                        <p className="text-lg font-semibold text-gray-800 dark:text-gray-100 mb-4">{message}</p>
+                        <div className="flex justify-center space-x-4">
+                            {type === 'OK' && (
+                                <button
+                                    onClick={onClose}
+                                    className="px-6 py-2 bg-primary text-white font-semibold rounded-lg shadow-md hover:bg-secondary focus:outline-none focus:ring-2 focus:ring-primary focus:ring-opacity-75 transition duration-200 ease-in-out"
+                                >
+                                    OK
+                                </button>
+                            )}
+                            {type === 'CONFIRM' && (
+                                <>
+                                    <button
+                                        onClick={() => { if (onConfirm) onConfirm(); onClose(); }}
+                                        className="px-6 py-2 bg-primary text-white font-semibold rounded-lg shadow-md hover:bg-secondary focus:outline-none focus:ring-2 focus:ring-primary focus:ring-opacity-75 transition duration-200 ease-in-out"
+                                    >
+                                        Confirm
+                                    </button>
+                                    <button
+                                        onClick={() => { if (onCancel) onCancel(); onClose(); }}
+                                        className="px-6 py-2 bg-gray-200 text-gray-800 font-semibold rounded-lg shadow-md hover:bg-gray-300 focus:outline-none focus:ring-2 focus:ring-gray-400 focus:ring-opacity-75 transition duration-200 ease-in-out"
+                                    >
+                                        Cancel
+                                    </button>
+                                </>
+                            )}
+                            {type === 'LOADING' && (
+                                <div className="flex flex-col items-center">
+                                    <div className="ai-loading-spinner mb-4"></div>
+                                    <p className="text-gray-700 dark:text-gray-300">Loading...</p>
+                                </div>
+                            )}
+                        </div>
+                    </div>
                 </div>
-            </div>
-        </div>
-    </div>
+            );
+        }
 
-    <!-- Main JavaScript file -->
-    <script type="module" src="main.js"></script>
+        // Custom hook for managing modal state
+        function useModal() {
+            const [showModal, setShowModal] = useState(false);
+            const [modalContent, setModalContent] = useState({ message: '', type: 'OK', onConfirm: null, onCancel: null });
+
+            const openModal = useCallback((message, type = 'OK', onConfirm = null, onCancel = null) => {
+                setModalContent({ message, type, onConfirm, onCancel });
+                setShowModal(true);
+            }, []);
+
+            const closeModal = useCallback(() => {
+                setShowModal(false);
+                setModalContent({ message: '', type: 'OK', onConfirm: null, onCancel: null });
+            }, []);
+
+            return { showModal, modalContent, openModal, closeModal };
+        }
+
+
+        // Main App Component
+        function App() {
+            const [currentPage, setCurrentPage] = useState('home');
+            const [currentQuestion, setCurrentQuestion] = useState(null);
+            const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
+            const [feedback, setFeedback] = useState('');
+            const [score, setScore] = useState(0);
+            const [totalQuestionsAttempted, setTotalQuestionsAttempted] = useState(0);
+            const [isLoading, setIsLoading] = useState(false); // For LLM generation
+            const [theoryQuestions, setTheoryQuestions] = useState(initialTheoryQuestions);
+            const [codingChallenges, setCodingChallenges] = useState(initialCodingChallenges);
+            const [answeredQuestions, setAnsweredQuestions] = useState([]); // For history
+            const [retryCount, setRetryCount] = useState(0); // For quiz retry logic
+            const [theme, setTheme] = useState('light'); // 'light' or 'dark' (Gods Mode)
+            const { showModal, modalContent, openModal, closeModal } = useModal(); // Use custom modal hook
+            const [isOnline, setIsOnline] = useState(navigator.onLine); // Online status
+
+            // Firebase state
+            const [db, setDb] = useState(null);
+            const [auth, setAuth] = useState(null);
+            const [userId, setUserId] = useState(null);
+            const [isAuthReady, setIsAuthReady] = useState(false);
+
+            // Initialize Firebase and set up authentication listener
+            useEffect(() => {
+                const app = initializeApp(firebaseConfig);
+                const firestoreDb = getFirestore(app);
+                const firebaseAuth = getAuth(app);
+                setDb(firestoreDb);
+                setAuth(firebaseAuth);
+
+                const unsubscribe = onAuthStateChanged(firebaseAuth, async (user) => {
+                    if (user) {
+                        setUserId(user.uid);
+                    } else {
+                        try {
+                            if (initialAuthToken) {
+                                await signInWithCustomToken(firebaseAuth, initialAuthToken);
+                            } else {
+                                await signInAnonymously(firebaseAuth);
+                            }
+                        } catch (error) {
+                            console.error("Firebase Auth Error:", error);
+                            openModal(`Failed to sign in: ${error.message}`, 'OK');
+                        }
+                    }
+                    setIsAuthReady(true);
+                });
+
+                // Event listeners for online/offline status
+                window.addEventListener('online', () => setIsOnline(true));
+                window.addEventListener('offline', () => setIsOnline(false));
+
+                return () => {
+                    unsubscribe();
+                    window.removeEventListener('online', () => setIsOnline(true));
+                    window.removeEventListener('offline', () => setIsOnline(false));
+                };
+            }, []); // Empty dependency array means this runs once on mount
+
+            // Fetch data from Firestore once authenticated and ready
+            useEffect(() => {
+                if (db && userId && isAuthReady) {
+                    // Listen for real-time updates on answered questions
+                    const answeredQuestionsCollectionRef = collection(db, `artifacts/${appId}/users/${userId}/answeredQuestions`);
+                    const unsubscribeAnswered = onSnapshot(answeredQuestionsCollectionRef, (snapshot) => {
+                        const fetchedAnswered = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                        // Ensure timestamp is a Date object for sorting if needed later
+                        fetchedAnswered.forEach(entry => {
+                            if (entry.timestamp && typeof entry.timestamp.toDate === 'function') {
+                                entry.timestamp = entry.timestamp.toDate();
+                            }
+                        });
+                        setAnsweredQuestions(fetchedAnswered);
+                    }, (error) => {
+                        console.error("Error listening to answered questions:", error);
+                        openModal(`Error loading history: ${error.message}`, 'OK');
+                    });
+
+                    // Listen for real-time updates on generated theory questions
+                    const theoryCollectionRef = collection(db, `artifacts/${appId}/users/${userId}/theoryQuestions`);
+                    const unsubscribeTheory = onSnapshot(theoryCollectionRef, (snapshot) => {
+                        const fetchedTheory = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                        setTheoryQuestions(prev => {
+                            const existingIds = new Set(initialTheoryQuestions.map(q => q.id)); // Include hardcoded IDs
+                            const newQuestions = fetchedTheory.filter(q => !existingIds.has(q.id));
+                            return [...initialTheoryQuestions, ...newQuestions]; // Always start with initial, then add generated
+                        });
+                    }, (error) => {
+                        console.error("Error listening to theory questions:", error);
+                        openModal(`Error loading generated theory questions: ${error.message}`, 'OK');
+                    });
+
+                    // Listen for real-time updates on generated coding challenges
+                    const codingCollectionRef = collection(db, `artifacts/${appId}/users/${userId}/codingChallenges`);
+                    const unsubscribeCoding = onSnapshot(codingCollectionRef, (snapshot) => {
+                        const fetchedCoding = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                        setCodingChallenges(prev => {
+                            const existingIds = new Set(initialCodingChallenges.map(c => c.id)); // Include hardcoded IDs
+                            const newChallenges = fetchedCoding.filter(c => !existingIds.has(c.id));
+                            return [...initialCodingChallenges, ...newChallenges]; // Always start with initial, then add generated
+                        });
+                    }, (error) => {
+                        console.error("Error listening to coding challenges:", error);
+                        openModal(`Error loading generated practical questions: ${error.message}`, 'OK');
+                    });
+
+                    return () => {
+                        unsubscribeAnswered();
+                        unsubscribeTheory();
+                        unsubscribeCoding();
+                    };
+                }
+            }, [db, userId, isAuthReady]); // Dependencies: re-run when db, userId, or isAuthReady changes
+
+            // Function to save answered question to Firestore
+            const saveAnsweredQuestion = useCallback(async (questionDetails) => {
+                if (db && userId) {
+                    try {
+                        const answeredQuestionsCollectionRef = collection(db, `artifacts/${appId}/users/${userId}/answeredQuestions`);
+                        await addDoc(answeredQuestionsCollectionRef, { ...questionDetails, timestamp: serverTimestamp() });
+                    } catch (error) {
+                        console.error("Error saving answered question to Firestore:", error);
+                        openModal(`Error saving quiz result: ${error.message}`, 'OK');
+                    }
+                }
+            }, [db, userId, openModal]);
+
+            const startQuiz = (type, numQuestions) => {
+                const availableQuestions = type === 'theory' ? theoryQuestions : codingChallenges;
+                if (availableQuestions.length === 0) {
+                    openModal(`No ${type} questions available. Try generating some!`);
+                    return;
+                }
+
+                // Shuffle and select questions
+                const shuffledQuestions = [...availableQuestions].sort(() => 0.5 - Math.random());
+                const selectedQuestions = shuffledQuestions.slice(0, numQuestions);
+
+                if (selectedQuestions.length === 0) {
+                    openModal(`Not enough ${type} questions available. Try generating more or select fewer questions.`);
+                    return;
+                }
+
+                setCurrentQuestionIndex(0);
+                setCurrentQuestion({ type, data: selectedQuestions[0], allQuestions: selectedQuestions });
+                setCurrentPage(type);
+                setFeedback('');
+                setRetryCount(0);
+                setScore(0); // Reset score for new quiz session
+                setTotalQuestionsAttempted(0); // Reset attempted count for new quiz session
+            };
+
+            const handleNextQuestion = useCallback(() => {
+                if (!currentQuestion || !currentQuestion.allQuestions) return;
+
+                const nextIndex = currentQuestionIndex + 1;
+
+                if (nextIndex < currentQuestion.allQuestions.length) {
+                    setCurrentQuestionIndex(nextIndex);
+                    setCurrentQuestion(prev => ({ ...prev, data: prev.allQuestions[nextIndex] }));
+                    setFeedback('');
+                    setRetryCount(0);
+                } else {
+                    openModal("You've completed all questions in this quiz session!", 'OK', () => {
+                        setCurrentPage('home');
+                        setCurrentQuestion(null);
+                    });
+                }
+            }, [currentQuestion, currentQuestionIndex, openModal]);
+
+            const handleTheoryAnswer = (selectedOption) => {
+                if (!currentQuestion || submitted) return; // Prevent multiple submissions
+
+                setTotalQuestionsAttempted(prev => prev + 1);
+                const isCorrect = selectedOption === currentQuestion.data.answer;
+
+                if (isCorrect) {
+                    setFeedback(`Correct! ${currentQuestion.data.explanation}`);
+                    setScore(prev => prev + 1);
+                    saveAnsweredQuestion({
+                        type: 'theory',
+                        questionId: currentQuestion.data.id,
+                        question: currentQuestion.data.question,
+                        userAnswer: selectedOption,
+                        correctAnswer: currentQuestion.data.answer,
+                        explanation: currentQuestion.data.explanation,
+                        isCorrect: true,
+                    });
+                    setSubmitted(true); // Mark as submitted
+                } else {
+                    setRetryCount(prev => prev + 1);
+                    if (retryCount === 0) { // First incorrect attempt
+                        setFeedback(`Incorrect. Try again!`);
+                    } else { // Second incorrect attempt
+                        setFeedback(`Incorrect again. The correct answer was: "${currentQuestion.data.answer}". ${currentQuestion.data.explanation}`);
+                        saveAnsweredQuestion({
+                            type: 'theory',
+                            questionId: currentQuestion.data.id,
+                            question: currentQuestion.data.question,
+                            userAnswer: selectedOption,
+                            correctAnswer: currentQuestion.data.answer,
+                            explanation: currentQuestion.data.explanation,
+                            isCorrect: false,
+                        });
+                        setSubmitted(true); // Mark as submitted after final attempt
+                    }
+                }
+            };
+
+            const handleCodingSubmit = (userCode) => {
+                if (!currentQuestion || submitted) return; // Prevent multiple submissions
+
+                setTotalQuestionsAttempted(prev => prev + 1);
+                const challenge = currentQuestion.data;
+                // Simple check for keywords. In a real app, you'd run/compile the C code.
+                const lowerCaseUserCode = userCode.toLowerCase();
+                const allKeywordsPresent = challenge.expectedOutputKeywords ? challenge.expectedOutputKeywords.every(keyword =>
+                    lowerCaseUserCode.includes(keyword.toLowerCase())
+                ) : false; // Handle cases where expectedOutputKeywords might be missing
+
+                if (allKeywordsPresent) {
+                    setFeedback(`Great job! Your code seems to address the challenge. Example output: "${challenge.exampleOutput}"`);
+                    setScore(prev => prev + 1);
+                    saveAnsweredQuestion({
+                        type: 'practical',
+                        questionId: challenge.id,
+                        prompt: challenge.question, // Use 'question' from practical for consistency
+                        userCode: userCode,
+                        correctAnswer: challenge.correctAnswer, // Save the actual solution
+                        isCorrect: true,
+                    });
+                    setSubmitted(true);
+                } else {
+                    setRetryCount(prev => prev + 1);
+                    if (retryCount === 0) {
+                        setFeedback(`Hmm, your code might be missing some key elements. Try again!`);
+                    } else {
+                        setFeedback(`Still not quite right. Expected output example: "${challenge.exampleOutput}". Hint: ${challenge.hint}`);
+                        saveAnsweredQuestion({
+                            type: 'practical',
+                            questionId: challenge.id,
+                            prompt: challenge.question,
+                            userCode: userCode,
+                            correctAnswer: challenge.correctAnswer,
+                            isCorrect: false,
+                        });
+                        setSubmitted(true); // Mark as submitted after final attempt
+                    }
+                }
+            };
+
+            const handleGiveUpCoding = () => {
+                if (!currentQuestion || submitted) return;
+                openModal('Are you sure you want to give up? The correct solution will be revealed.', 'CONFIRM', () => {
+                    setFeedback(`You gave up. The correct solution was:\n\n<pre class="code-editor">${currentQuestion.data.correctAnswer}</pre>\n\nExplanation: ${currentQuestion.data.explanation}`);
+                    setSubmitted(true);
+                    setTotalQuestionsAttempted(prev => prev + 1);
+                    saveAnsweredQuestion({
+                        type: 'practical',
+                        questionId: currentQuestion.data.id,
+                        prompt: currentQuestion.data.question,
+                        userCode: 'Gave Up',
+                        correctAnswer: currentQuestion.data.correctAnswer,
+                        isCorrect: false,
+                    });
+                });
+            };
+
+            const generateMultipleChallenges = async (type, count = 20, difficulty = 'intermediate') => {
+                if (!isOnline) {
+                    openModal("You are offline. Cannot generate new challenges.");
+                    return;
+                }
+                setIsLoading(true);
+                openModal(`Generating ${count} new ${difficulty} ${type} questions... This may take a moment.`, 'LOADING');
+
+                const generatedQuestions = [];
+
+                for (let i = 0; i < count; i++) {
+                    let prompt = '';
+                    let schema = {};
+
+                    if (type === 'theory') {
+                        prompt = `Generate a unique C programming ${difficulty} level multiple-choice theory question. Provide:
+                        - question (string)
+                        - options (array of 4 strings)
+                        - answer (string, one of the options)
+                        - explanation (string, brief explanation of the correct answer)
+                        - hint (string, a subtle hint)
+                        Ensure it's distinct from common introductory C concepts and previous questions. Format as JSON.`;
+                        schema = {
+                            type: "OBJECT",
+                            properties: {
+                                "question": { "type": "STRING" },
+                                "options": {
+                                    "type": "ARRAY",
+                                    "items": { "type": "STRING" }
+                                },
+                                "answer": { "type": "STRING" },
+                                "explanation": { "type": "STRING" },
+                                "hint": { "type": "STRING" }
+                            },
+                            propertyOrdering: ["question", "options", "answer", "explanation", "hint"]
+                        };
+                    } else if (type === 'practical') {
+                        prompt = `Generate a unique C programming ${difficulty} level practical coding challenge. Provide:
+                        - question (string, describing the coding task)
+                        - codeTemplate (string, basic C code structure for the user to fill, e.g., #include <stdio.h>\\n\\nint main() {\\n    // Write your code here\\n    return 0;\\n})
+                        - correctAnswer (string, the complete correct C code solution)
+                        - explanation (string, brief explanation of the solution)
+                        - hint (string, a subtle hint for coding)
+                        Ensure it's distinct from previous challenges. Format as JSON.`;
+                        schema = {
+                            type: "OBJECT",
+                            properties: {
+                                "question": { "type": "STRING" },
+                                "codeTemplate": { "type": "STRING" },
+                                "correctAnswer": { "type": "STRING" },
+                                "explanation": { "type": "STRING" },
+                                "hint": { "type": "STRING" }
+                            },
+                            propertyOrdering: ["question", "codeTemplate", "correctAnswer", "explanation", "hint"]
+                        };
+                    }
+
+                    try {
+                        const chatHistory = [];
+                        chatHistory.push({ role: "user", parts: [{ text: prompt }] });
+                        const payload = {
+                            contents: chatHistory,
+                            generationConfig: {
+                                responseMimeType: "application/json",
+                                responseSchema: schema
+                            }
+                        };
+                        const apiKey = ""; // Canvas will provide this at runtime
+                        const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
+
+                        const response = await fetch(apiUrl, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify(payload)
+                        });
+
+                        const result = await response.json();
+
+                        if (result.candidates && result.candidates.length > 0 &&
+                            result.candidates[0].content && result.candidates[0].content.parts &&
+                            result.candidates[0].content.parts.length > 0) {
+                            const jsonString = result.candidates[0].content.parts[0].text;
+                            const generatedData = JSON.parse(jsonString);
+
+                            const newChallenge = {
+                                id: `${type === 'theory' ? 'llm-t' : 'llm-p'}-${difficulty}-${Date.now()}-${i}`,
+                                type: type, // Add type for Firestore filtering
+                                difficulty: difficulty,
+                                ...generatedData
+                            };
+                            generatedQuestions.push(newChallenge);
+
+                            // Save each generated question to Firestore immediately
+                            if (db && userId) {
+                                const collectionRef = collection(db, `artifacts/${appId}/users/${userId}/${type === 'theory' ? 'theoryQuestions' : 'codingChallenges'}`);
+                                await addDoc(collectionRef, newChallenge);
+                            }
+
+                        } else {
+                            console.warn(`Failed to generate question ${i + 1}. Skipping.`);
+                        }
+                    } catch (error) {
+                        console.error(`Error generating question ${i + 1}:`, error);
+                    }
+                }
+
+                if (generatedQuestions.length > 0) {
+                    openModal(`Successfully generated ${generatedQuestions.length} new ${difficulty} ${type} challenges!`, 'OK');
+                } else {
+                    openModal('No new challenges could be generated. Please check your internet connection or try again later.', 'OK');
+                }
+                setIsLoading(false);
+            };
+
+
+            const toggleTheme = () => {
+                setTheme(prevTheme => {
+                    const newTheme = prevTheme === 'light' ? 'dark' : 'light';
+                    document.documentElement.classList.toggle('dark', newTheme === 'dark');
+                    return newTheme;
+                });
+            };
+
+            // Apply theme class to document element
+            useEffect(() => {
+                document.documentElement.classList.toggle('dark', theme === 'dark');
+            }, [theme]);
+
+
+            const renderPage = () => {
+                switch (currentPage) {
+                    case 'home':
+                        return (
+                            <div className="flex flex-col items-center justify-center p-6 bg-white dark:bg-gray-800 rounded-xl shadow-lg w-full max-w-lg text-gray-900 dark:text-gray-100 transition-colors duration-300">
+                                <h1 className="text-4xl font-extrabold text-primary dark:text-secondary mb-2">HICKS BOZON404</h1>
+                                <h2 className="text-3xl font-bold mb-6 text-center">C Programming Challenges</h2>
+                                <p className="text-lg mb-8 text-center">Test your knowledge with daily theory quizzes and coding challenges!</p>
+
+                                <div className="flex flex-col sm:flex-row gap-4 w-full justify-center mb-6">
+                                    <select id="num-questions-select" className="flex-grow p-3 border border-gray-300 rounded-xl shadow-sm focus:ring-primary focus:border-primary text-gray-700 dark:bg-gray-700 dark:text-gray-100 dark:border-gray-600">
+                                        <option value="5">5 Questions</option>
+                                        <option value="10">10 Questions</option>
+                                        <option value="20" selected>20 Questions</option>
+                                    </select>
+                                </div>
+                                <div className="flex flex-col sm:flex-row gap-4 w-full justify-center mb-6">
+                                    <button
+                                        onClick={() => startQuiz('theory', parseInt(document.getElementById('num-questions-select').value))}
+                                        className="w-full sm:w-auto px-6 py-3 bg-primary text-white font-semibold rounded-lg shadow-md hover:bg-secondary focus:outline-none focus:ring-2 focus:ring-primary focus:ring-opacity-75 transition duration-200 ease-in-out"
+                                    >
+                                        Start Theory Quiz
+                                    </button>
+                                    <button
+                                        onClick={() => startQuiz('practical', parseInt(document.getElementById('num-questions-select').value))}
+                                        className="w-full sm:w-auto px-6 py-3 bg-tertiary text-white font-semibold rounded-lg shadow-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-tertiary focus:ring-opacity-75 transition duration-200 ease-in-out"
+                                    >
+                                        Start Practical Challenge
+                                    </button>
+                                </div>
+
+                                <div className="w-full text-center mb-6">
+                                    <button
+                                        onClick={() => setCurrentPage('history')}
+                                        className="w-full sm:w-auto px-6 py-3 bg-purple-600 text-white font-semibold rounded-lg shadow-md hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-opacity-75 transition duration-200 ease-in-out"
+                                    >
+                                        View History
+                                    </button>
+                                </div>
+
+                                <div className="mt-4 pt-6 border-t border-gray-200 dark:border-gray-700 w-full text-center">
+                                    <p className="text-md mb-4 text-gray-700 dark:text-gray-300">Feeling adventurous? Generate a batch of 20 new challenges!</p>
+                                    <div className="flex flex-col sm:flex-row gap-4 w-full justify-center mb-6">
+                                        <select id="difficulty-select" className="flex-grow p-3 border border-gray-300 rounded-xl shadow-sm focus:ring-primary focus:border-primary text-gray-700 dark:bg-gray-700 dark:text-gray-100 dark:border-gray-600">
+                                            <option value="beginner">Beginner</option>
+                                            <option value="intermediate" selected>Intermediate</option>
+                                            <option value="advanced">Advanced</option>
+                                        </select>
+                                    </div>
+                                    <button
+                                        onClick={() => generateMultipleChallenges('theory', 20, document.getElementById('difficulty-select').value)}
+                                        disabled={isLoading || !isOnline}
+                                        className="w-full sm:w-auto mb-3 px-6 py-3 bg-indigo-600 text-white font-semibold rounded-lg shadow-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-opacity-75 transition duration-200 ease-in-out disabled:opacity-50 disabled:cursor-not-allowed"
+                                    >
+                                        {isLoading ? 'Generating Theory...' : 'Generate 20 New Theory Challenges'}
+                                    </button>
+                                    <button
+                                        onClick={() => generateMultipleChallenges('practical', 20, document.getElementById('difficulty-select').value)}
+                                        disabled={isLoading || !isOnline}
+                                        className="w-full sm:w-auto px-6 py-3 bg-red-600 text-white font-semibold rounded-lg shadow-md hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-opacity-75 transition duration-200 ease-in-out disabled:opacity-50 disabled:cursor-not-allowed"
+                                    >
+                                        {isLoading ? 'Generating Practical...' : 'Generate 20 New Practical Challenges'}
+                                    </button>
+                                    {isLoading && <p className="mt-4 text-primary dark:text-secondary">Generating challenges, please wait...</p>}
+                                    {!isOnline && <p className="mt-4 text-red-500">You are offline. New challenges cannot be generated.</p>}
+                                </div>
+
+                                <div className="mt-8 text-center p-4 bg-gray-100 dark:bg-gray-700 rounded-lg shadow-inner w-full">
+                                    <p className="text-lg font-semibold text-gray-800 dark:text-gray-100">Your Score: {score} / {totalQuestionsAttempted}</p>
+                                    {userId && <p className="text-sm mt-2 text-gray-600 dark:text-gray-400 break-all">Your User ID: {userId}</p>}
+                                </div>
+
+                                <button
+                                    onClick={toggleTheme}
+                                    className="mt-8 px-4 py-2 bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-100 font-semibold rounded-lg shadow-md hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors duration-300"
+                                >
+                                    Toggle Theme ({theme === 'light' ? 'Dark Mode (Gods Mode)' : 'Light Mode'})
+                                </button>
+                            </div>
+                        );
+                    case 'theory':
+                        return (
+                            <TheoryQuiz
+                                questionData={currentQuestion.data}
+                                onSubmitAnswer={handleTheoryAnswer}
+                                feedback={feedback}
+                                retryCount={retryCount}
+                                onNextQuestion={handleNextQuestion}
+                                onBack={() => { setCurrentPage('home'); setFeedback(''); setCurrentQuestion(null); setRetryCount(0); setSubmitted(false); }}
+                                questionNumber={currentQuestionIndex + 1}
+                                totalQuestions={currentQuestion.allQuestions.length}
+                                theme={theme}
+                                openModal={openModal}
+                                submitted={submitted} // Pass submitted state
+                                setSubmitted={setSubmitted} // Pass setter for submitted state
+                            />
+                        );
+                    case 'practical':
+                        return (
+                            <CodingChallenge
+                                challengeData={currentQuestion.data}
+                                onSubmitCode={handleCodingSubmit}
+                                onGiveUp={handleGiveUpCoding}
+                                feedback={feedback}
+                                retryCount={retryCount}
+                                onNextQuestion={handleNextQuestion}
+                                onBack={() => { setCurrentPage('home'); setFeedback(''); setCurrentQuestion(null); setRetryCount(0); setSubmitted(false); }}
+                                questionNumber={currentQuestionIndex + 1}
+                                totalQuestions={currentQuestion.allQuestions.length}
+                                theme={theme}
+                                openModal={openModal}
+                                submitted={submitted} // Pass submitted state
+                                setSubmitted={setSubmitted} // Pass setter for submitted state
+                            />
+                        );
+                    case 'history':
+                        return (
+                            <HistoryPage
+                                answeredQuestions={answeredQuestions}
+                                onBack={() => setCurrentPage('home')}
+                                theme={theme}
+                            />
+                        );
+                    default:
+                        return null;
+                }
+            };
+
+            return (
+                <div className={`min-h-screen flex items-center justify-center p-4 font-inter transition-colors duration-300
+                    ${theme === 'light' ? 'bg-gradient-to-br from-gray-100 to-gray-300 text-gray-900' : 'bg-gradient-to-br from-gray-900 to-gray-700 text-gray-100'}`}>
+                    {renderPage()}
+                    {showModal && <Modal {...modalContent} onClose={closeModal} />}
+                </div>
+            );
+        }
+
+        // Theory Quiz Component
+        function TheoryQuiz({ questionData, onSubmitAnswer, feedback, retryCount, onNextQuestion, onBack, questionNumber, totalQuestions, theme, openModal, submitted, setSubmitted }) {
+            const [selectedOption, setSelectedOption] = useState('');
+
+            useEffect(() => {
+                // Reset state when questionData changes (e.g., new question loaded)
+                setSelectedOption('');
+                setSubmitted(false); // Reset submitted status for new question
+            }, [questionData, setSubmitted]);
+
+            const handleSubmit = () => {
+                if (selectedOption) {
+                    onSubmitAnswer(selectedOption);
+                } else {
+                    openModal('Please select an option before submitting.');
+                }
+            };
+
+            const isAnswerRevealed = submitted && !feedback.startsWith('Correct') && retryCount > 0; // After second failed attempt
+
+            return (
+                <div className={`flex flex-col items-center p-6 rounded-xl shadow-lg w-full max-w-2xl transition-colors duration-300
+                    ${theme === 'light' ? 'bg-white text-gray-900' : 'bg-gray-800 text-gray-100'}`}>
+                    <h2 className="text-2xl font-bold mb-6 text-center">Theory Question {questionNumber} / {totalQuestions}</h2>
+                    <p className="text-lg mb-6 leading-relaxed">{questionData.question}</p>
+
+                    <div className="w-full space-y-4 mb-6">
+                        {questionData.options.map((option, index) => (
+                            <label key={index} className={`flex items-center p-4 border rounded-lg cursor-pointer transition duration-200 ease-in-out
+                                ${submitted && option === questionData.answer ? 'bg-green-200 dark:bg-green-700 border-green-500' : ''}
+                                ${submitted && option === selectedOption && option !== questionData.answer ? 'bg-red-100 dark:bg-red-700 border-red-500' : ''}
+                                ${!submitted && selectedOption === option ? 'bg-blue-50 dark:bg-blue-900 border-blue-400' : 'bg-gray-50 dark:bg-gray-700 border-gray-200 dark:border-gray-600 hover:border-gray-300 dark:hover:border-gray-500'}`}
+                            >
+                                <input
+                                    type="radio"
+                                    name="theoryOption"
+                                    value={option}
+                                    checked={selectedOption === option}
+                                    onChange={(e) => setSelectedOption(e.target.value)}
+                                    disabled={submitted}
+                                    className="form-radio h-5 w-5 text-primary dark:text-secondary"
+                                />
+                                <span className="ml-3 text-base">{option}</span>
+                            </label>
+                        ))}
+                    </div>
+
+                    {!submitted && (
+                        <button
+                            onClick={handleSubmit}
+                            className="w-full px-6 py-3 bg-primary text-white font-semibold rounded-lg shadow-md hover:bg-secondary focus:outline-none focus:ring-2 focus:ring-primary focus:ring-opacity-75 transition duration-200 ease-in-out"
+                        >
+                            Submit Answer
+                        </button>
+                    )}
+
+                    {feedback && (
+                        <div className={`w-full mt-6 p-4 rounded-lg border transition-colors duration-300
+                            ${feedback.startsWith('Correct') ? 'bg-green-100 dark:bg-green-900 border-green-500 text-green-700 dark:text-green-200' : 'bg-red-100 dark:bg-red-900 border-red-500 text-red-700 dark:text-red-200'}`}>
+                            <p className="text-lg font-semibold mb-2">Feedback:</p>
+                            <p className="text-base">{feedback}</p>
+                        </div>
+                    )}
+
+                    {submitted && ( // Show Next button only after submission
+                        <button
+                            onClick={onNextQuestion}
+                            className={`mt-6 px-6 py-3 font-semibold rounded-lg shadow-md transition-colors duration-300
+                                ${theme === 'light' ? 'bg-indigo-600 text-white hover:bg-indigo-700 focus:ring-indigo-500' : 'bg-indigo-700 text-white hover:bg-indigo-600 focus:ring-indigo-500'}`}
+                        >
+                            Next Question
+                        </button>
+                    )}
+
+                    <button
+                        onClick={onBack}
+                        className={`mt-4 px-6 py-3 font-semibold rounded-lg shadow-md transition-colors duration-300
+                            ${theme === 'light' ? 'bg-gray-200 text-gray-800 hover:bg-gray-300 focus:ring-gray-400' : 'bg-gray-700 text-gray-100 hover:bg-gray-600 focus:ring-gray-500'}`}
+                    >
+                        Back to Home
+                    </button>
+                </div>
+            );
+        }
+
+        // Coding Challenge Component
+        function CodingChallenge({ challengeData, onSubmitCode, onGiveUp, feedback, retryCount, onNextQuestion, onBack, questionNumber, totalQuestions, theme, openModal, submitted, setSubmitted }) {
+            const [userCode, setUserCode] = useState(challengeData.codeTemplate || '');
+
+            useEffect(() => {
+                // Reset state when challengeData changes
+                setUserCode(challengeData.codeTemplate || '');
+                setSubmitted(false); // Reset submitted status for new question
+            }, [challengeData, setSubmitted]);
+
+            const handleSubmit = () => {
+                onSubmitCode(userCode);
+            };
+
+            return (
+                <div className={`flex flex-col items-center p-6 rounded-xl shadow-lg w-full max-w-3xl transition-colors duration-300
+                    ${theme === 'light' ? 'bg-white text-gray-900' : 'bg-gray-800 text-gray-100'}`}>
+                    <h2 className="text-2xl font-bold mb-6 text-center">Practical Challenge {questionNumber} / {totalQuestions}</h2>
+                    <div className={`w-full mb-6 p-4 border rounded-lg transition-colors duration-300
+                        ${theme === 'light' ? 'bg-blue-50 border-blue-200 text-blue-800' : 'bg-blue-900 border-blue-700 text-blue-200'}`}>
+                        <p className="text-lg font-semibold mb-2">Problem:</p>
+                        <p className="text-base leading-relaxed">{challengeData.question}</p>
+                        {/* Note: exampleInput and exampleOutput are not directly used for evaluation here, but for user guidance */}
+                        <p className="text-sm mt-3">Example Input: <span className="font-mono bg-gray-100 dark:bg-gray-700 p-1 rounded">{challengeData.exampleInput || 'N/A'}</span></p>
+                        <p className="text-sm">Example Output: <span className="font-mono bg-gray-100 dark:bg-gray-700 p-1 rounded">{challengeData.exampleOutput || 'N/A'}</span></p>
+                    </div>
+
+                    <div className="bg-gray-100 dark:bg-gray-700 p-4 rounded-lg mb-4 w-full">
+                        <label htmlFor="code-editor" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Write your C code here:</label>
+                        <textarea
+                            id="code-editor"
+                            className="code-editor w-full"
+                            rows="10"
+                            placeholder="Type your C code here..."
+                            value={userCode}
+                            onChange={(e) => setUserCode(e.target.value)}
+                            disabled={submitted}
+                        ></textarea>
+                    </div>
+
+                    {!submitted && (
+                        <div className="flex flex-wrap justify-center gap-4 w-full mt-4">
+                            <button
+                                onClick={handleSubmit}
+                                className="flex-1 px-6 py-3 bg-primary text-white font-semibold rounded-lg shadow-md hover:bg-secondary focus:outline-none focus:ring-2 focus:ring-primary focus:ring-opacity-75 transition duration-200 ease-in-out"
+                            >
+                                Submit Code
+                            </button>
+                            <button
+                                onClick={onGiveUp}
+                                className="flex-1 px-6 py-3 bg-red-600 text-white font-semibold rounded-lg shadow-md hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-opacity-75 transition duration-200 ease-in-out"
+                            >
+                                Give Up
+                            </button>
+                        </div>
+                    )}
+
+                    {feedback && (
+                        <div className={`w-full mt-6 p-4 rounded-lg border transition-colors duration-300
+                            ${feedback.startsWith('Great job') ? 'bg-green-100 dark:bg-green-900 border-green-500 text-green-700 dark:text-green-200' : 'bg-red-100 dark:bg-red-900 border-red-500 text-red-700 dark:text-red-200'}`}>
+                            <p className="text-lg font-semibold mb-2">Feedback:</p>
+                            <p className="text-base" dangerouslySetInnerHTML={{ __html: feedback }}></p>
+                        </div>
+                    )}
+
+                    {submitted && (
+                        <button
+                            onClick={onNextQuestion}
+                            className={`mt-6 px-6 py-3 font-semibold rounded-lg shadow-md transition-colors duration-300
+                                ${theme === 'light' ? 'bg-indigo-600 text-white hover:bg-indigo-700 focus:ring-indigo-500' : 'bg-indigo-700 text-white hover:bg-indigo-600 focus:ring-indigo-500'}`}
+                        >
+                            Next Question
+                        </button>
+                    )}
+
+                    <button
+                        onClick={onBack}
+                        className={`mt-4 px-6 py-3 font-semibold rounded-lg shadow-md transition-colors duration-300
+                            ${theme === 'light' ? 'bg-gray-200 text-gray-800 hover:bg-gray-300 focus:ring-gray-400' : 'bg-gray-700 text-gray-100 hover:bg-gray-600 focus:ring-gray-500'}`}
+                    >
+                        Back to Home
+                    </button>
+                </div>
+            );
+        }
+
+        // History Page Component
+        function HistoryPage({ answeredQuestions, onBack, theme }) {
+            // Sort questions by timestamp, newest first
+            const sortedQuestions = [...answeredQuestions].sort((a, b) => {
+                const dateA = a.timestamp instanceof Date ? a.timestamp : new Date(a.timestamp);
+                const dateB = b.timestamp instanceof Date ? b.timestamp : new Date(b.timestamp);
+                return dateB - dateA;
+            });
+
+            return (
+                <div className={`flex flex-col items-center p-6 rounded-xl shadow-lg w-full max-w-3xl transition-colors duration-300
+                    ${theme === 'light' ? 'bg-white text-gray-900' : 'bg-gray-800 text-gray-100'}`}>
+                    <h2 className="text-2xl font-bold mb-6 text-center">Quiz History</h2>
+
+                    {sortedQuestions.length === 0 ? (
+                        <p className="text-lg text-gray-600 dark:text-gray-400">No quiz history available yet. Start a quiz to see your progress!</p>
+                    ) : (
+                        <div className="w-full space-y-4">
+                            {sortedQuestions.map((entry, index) => (
+                                <div key={entry.id || index} className={`p-4 rounded-lg shadow-sm border
+                                    ${entry.isCorrect ? 'bg-green-50 dark:bg-green-800 border-green-300' : 'bg-red-50 dark:bg-red-800 border-red-300'}`}>
+                                    <p className="font-semibold text-lg mb-1">
+                                        {entry.type === 'theory' ? 'Theory Question: ' : 'Practical Challenge: '}
+                                        <span className={`${entry.isCorrect ? 'text-green-700 dark:text-green-200' : 'text-red-700 dark:text-red-200'}`}>
+                                            {entry.isCorrect ? 'Correct' : 'Incorrect'}
+                                        </span>
+                                    </p>
+                                    <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">
+                                        {entry.timestamp ? new Date(entry.timestamp).toLocaleString() : 'N/A'}
+                                    </p>
+                                    <p className="text-base font-medium">{entry.question || entry.prompt}</p>
+                                    {entry.type === 'theory' && (
+                                        <>
+                                            <p className="text-sm mt-2">Your Answer: <span className="font-mono">{entry.userAnswer || 'N/A'}</span></p>
+                                            <p className="text-sm">Correct Answer: <span className="font-mono">{entry.correctAnswer || 'N/A'}</span></p>
+                                        </>
+                                    )}
+                                    {entry.type === 'practical' && (
+                                        <>
+                                            <p className="text-sm mt-2">Your Code:</p>
+                                            <pre className="code-editor text-xs overflow-auto max-h-40">{entry.userCode || 'N/A'}</pre>
+                                            <p className="text-sm mt-2">Correct Solution:</p>
+                                            <pre className="code-editor text-xs overflow-auto max-h-40">{entry.correctAnswer || 'N/A'}</pre>
+                                        </>
+                                    )}
+                                    <p className="text-sm mt-2">Explanation: {entry.explanation || 'No explanation provided.'}</p>
+                                </div>
+                            ))}
+                        </div>
+                    )}
+
+                    <button
+                        onClick={onBack}
+                        className={`mt-6 px-6 py-3 font-semibold rounded-lg shadow-md transition-colors duration-300
+                            ${theme === 'light' ? 'bg-gray-200 text-gray-800 hover:bg-gray-300 focus:ring-gray-400' : 'bg-gray-700 text-gray-100 hover:bg-gray-600 focus:ring-gray-500'}`}
+                    >
+                        Back to Home
+                    </button>
+                </div>
+            );
+        }
+
+        // Render the React App
+        document.addEventListener('DOMContentLoaded', () => {
+            // Hide the splash screen after a delay
+            const splashScreen = document.getElementById('splash-screen');
+            setTimeout(() => {
+                splashScreen.classList.add('hidden'); // Fade out splash screen
+                setTimeout(() => {
+                    splashScreen.style.display = 'none'; // Remove from flow after transition
+                    const container = document.getElementById('app-container'); // Target app-container
+                    if (container) {
+                        const root = createRoot(container);
+                        root.render(<App />);
+                    } else {
+                        console.error("App container element not found!");
+                    }
+                }, 500); // Match transition duration
+            }, 3000); // 3 seconds splash screen
+        });
+    </script>
 </body>
 </html>
