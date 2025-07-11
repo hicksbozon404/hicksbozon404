@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HICKS BOZON404 - C Quiz App</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        // Configure Tailwind CSS to use 'Inter' font and custom colors if desired
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        inter: ['Inter', 'sans-serif'],
+                    },
+                    colors: {
+                        primary: '#3B82F6', // A nice blue
+                        secondary: '#60A5FA', // Lighter blue
+                        accent: '#FCD34D', // Yellow for accents
+                        darkbg: '#1A202C', // Dark background
+                        darktext: '#E2E8F0', // Light text on dark background
+                    }
+                }
+            }
+        }
+    </script>
+    <!-- Link to manifest.json for PWA features -->
+    <link rel="manifest" href="manifest.json">
+    <!-- Apple Touch Icon for iOS PWA -->
+    <link rel="apple-touch-icon" href="images/icon-192x192.png">
+    <!-- Theme color for browser UI -->
+    <meta name="theme-color" content="#3B82F6">
+    <style>
+        /* Custom CSS for splash screen and general body styling */
+        body {
+            font-family: 'Inter', sans-serif;
+            margin: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            background-color: #f0f2f5; /* Light grey background */
+            color: #333;
+        }
+        #splash-screen {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: #ffffff; /* White background for splash */
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+            transition: opacity 0.5s ease-out;
+        }
+        #splash-screen.hidden {
+            opacity: 0;
+            pointer-events: none; /* Allows clicks through once hidden */
+        }
+        #splash-screen img {
+            width: 150px; /* Adjust size as needed */
+            height: 150px;
+            border-radius: 50%; /* Make it circular */
+            object-fit: cover;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+        }
+        /* Main app container styling */
+        #app-container {
+            width: 100%;
+            max-width: 600px; /* Max width for better readability on large screens */
+            background-color: #ffffff;
+            border-radius: 1rem; /* Rounded corners */
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+            overflow: hidden; /* Ensures rounded corners apply to children */
+            display: none; /* Hidden by default, shown after splash */
+            flex-direction: column;
+            min-height: 80vh; /* Ensure it takes up a good portion of the screen */
+        }
+        /* Basic button styling for consistency */
+        .btn {
+            @apply px-6 py-3 rounded-xl font-semibold shadow-md transition-all duration-200 ease-in-out;
+        }
+        .btn-primary {
+            @apply bg-primary text-white hover:bg-secondary focus:outline-none focus:ring-2 focus:ring-primary focus:ring-opacity-75;
+        }
+        .btn-secondary {
+            @apply bg-gray-200 text-gray-800 hover:bg-gray-300 focus:outline-none focus:ring-2 focus:ring-gray-400 focus:ring-opacity-75;
+        }
+        .btn-green {
+            @apply bg-green-500 text-white hover:bg-green-600 focus:outline-none focus:ring-2 focus:ring-green-400 focus:ring-opacity-75;
+        }
+        .btn-red {
+            @apply bg-red-500 text-white hover:bg-red-600 focus:outline-none focus:ring-2 focus:ring-red-400 focus:ring-opacity-75;
+        }
+        .btn-yellow {
+            @apply bg-yellow-500 text-white hover:bg-yellow-600 focus:outline-none focus:ring-2 focus:ring-yellow-400 focus:ring-opacity-75;
+        }
+        /* Styling for the code editor area */
+        .code-editor {
+            background-color: #2D2D2D; /* Dark background for code */
+            color: #F8F8F2; /* Light text for code */
+            padding: 1rem;
+            border-radius: 0.5rem;
+            font-family: 'Fira Code', 'Monaco', 'Consolas', 'monospace'; /* Monospaced font */
+            font-size: 0.9rem;
+            line-height: 1.5;
+            min-height: 150px;
+            white-space: pre-wrap; /* Preserves whitespace and wraps */
+            word-break: break-all; /* Breaks long words */
+            overflow-x: auto; /* Enables horizontal scrolling for long lines */
+            resize: vertical; /* Allow vertical resizing */
+            border: 1px solid #444;
+        }
+        .code-editor:focus {
+            outline: none;
+            border-color: #60A5FA;
+            box-shadow: 0 0 0 3px rgba(96, 165, 250, 0.5);
+        }
+        /* General content padding */
+        .content-padding {
+            padding: 1.5rem;
+        }
+        /* Modal styling */
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.6);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 2000;
+            opacity: 0;
+            visibility: hidden;
+            transition: opacity 0.3s ease-out, visibility 0.3s ease-out;
+        }
+        .modal-overlay.active {
+            opacity: 1;
+            visibility: visible;
+        }
+        .modal-content {
+            background-color: #ffffff;
+            padding: 2rem;
+            border-radius: 1rem;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+            max-width: 90%;
+            width: 400px;
+            text-align: center;
+            position: relative;
+        }
+        .modal-close-btn {
+            position: absolute;
+            top: 0.75rem;
+            right: 0.75rem;
+            background: none;
+            border: none;
+            font-size: 1.5rem;
+            cursor: pointer;
+            color: #666;
+        }
+    </style>
+</head>
+<body class="font-inter">
+    <!-- Splash Screen -->
+    <div id="splash-screen">
+        <img src="images/my-pic.png" alt="HICKS BOZON404 Logo">
+    </div>
+
+    <!-- Main App Container -->
+    <div id="app-container" class="relative">
+        <!-- Header -->
+        <header class="bg-primary text-white p-4 text-center rounded-t-xl shadow-md">
+            <h1 class="text-2xl font-bold">HICKS BOZON404</h1>
+        </header>
+
+        <!-- Main Content Area (will be dynamically updated by JavaScript) -->
+        <main id="main-content" class="flex-grow p-6">
+            <!-- Content will be loaded here by JavaScript -->
+        </main>
+
+        <!-- Footer (optional, could be for navigation or info) -->
+        <footer id="app-footer" class="bg-gray-100 p-4 text-center text-gray-600 rounded-b-xl shadow-inner">
+            <p>&copy; 2025 HICKS BOZON404. All rights reserved.</p>
+        </footer>
+
+        <!-- Custom Modal for alerts/confirmations -->
+        <div id="custom-modal" class="modal-overlay">
+            <div class="modal-content">
+                <button class="modal-close-btn" onclick="app.closeModal()">&times;</button>
+                <p id="modal-message" class="text-lg mb-4"></p>
+                <div id="modal-actions" class="flex justify-center space-x-4">
+                    <button id="modal-confirm-btn" class="btn btn-primary hidden">Confirm</button>
+                    <button id="modal-cancel-btn" class="btn btn-secondary hidden">Cancel</button>
+                    <button id="modal-ok-btn" class="btn btn-primary hidden">OK</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main JavaScript file -->
+    <script type="module" src="main.js"></script>
+</body>
+</html>
