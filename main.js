@@ -16,8 +16,25 @@ let quizTimeElapsed = 0; // To store elapsed time
 
 // Get environment variables for Firebase
 const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
-const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {};
+let firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {};
 const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+
+// --- Firebase Config Fallback (CRITICAL FIX) ---
+// If projectId is not provided by the environment, use a placeholder.
+// This allows the app to initialize Firebase and run without crashing,
+// though data persistence might be limited if a real project isn't linked.
+if (!firebaseConfig.projectId) {
+    console.warn("Firebase 'projectId' not provided by environment. Using a placeholder. Data persistence might be affected.");
+    firebaseConfig = {
+        apiKey: firebaseConfig.apiKey || "placeholder-api-key",
+        authDomain: firebaseConfig.authDomain || "placeholder.firebaseapp.com",
+        projectId: firebaseConfig.projectId || "hicksbozon404-default", // Fallback projectId
+        storageBucket: firebaseConfig.storageBucket || "placeholder.appspot.com",
+        messagingSenderId: firebaseConfig.messagingSenderId || "1234567890",
+        appId: firebaseConfig.appId || "1:1234567890:web:abcdef1234567890"
+    };
+}
+
 
 // --- App Data Structures ---
 app.questions = {
@@ -543,7 +560,7 @@ app.initialQuestions = {
             id: 'P016',
             question: 'Write a C program to check if a character `ch = \'A\'` is a vowel or a consonant.',
             codeTemplate: `#include <stdio.h>\n\nint main() {\n    char ch = 'A';\n    // Write your code here\n    return 0;\n}`,
-            correctAnswer: `#include <stdio.h>\n\nint main() {\n    char ch = 'A';\n\n    if (ch == 'a' || ch == 'e' || ch == 'i' || ch == 'o' || ch == 'u' ||\n        ch == 'A' || ch == 'E' || ch == 'I' || ch == 'O' || ch == 'U') {\n        printf("%c is a vowel.\\n", ch);\n    } else if ((ch >= 'a' && ch <= 'z') || (ch >= 'A' && ch <= 'Z')) {\n        printf("%c is a consonant.\\n", ch);\n    } else {\n        printf("%c is not an alphabet.\\n", ch);\n    }\n    return 0;\n}`,
+            correctAnswer: `#include <stdio.h>\n\nint main() {\n    char ch = 'A';\n\n    if (ch == 'a' || ch == 'e' || ch == 'i' || ch == 'o' || ch == 'u' ||\n        ch == 'A' || ch == 'E' || ch == 'I' || ch == 'O' || ch == 'U') {\n        printf("%c is a vowel.\\n", ch);\n    } else if ((ch >= 'a' && ch <= 'z') || (ch >= 'A' && ch <= 'Z')) {\n        printf("%c is a consonant.\\n", ch);\n    }\n    else {\n        printf("%c is not an alphabet.\\n", ch);\n    }\n    return 0;\n}`,
             hint: 'Use `if-else if` statements and logical OR (`||`) to check for both lowercase and uppercase vowels.',
             explanation: 'The program uses `if-else if` to check if `ch` matches any vowel (case-insensitively). If not a vowel, it checks if it\'s an alphabet character before declaring it a consonant.'
         },

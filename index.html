@@ -18,12 +18,17 @@
                         // Shades of Green for the primary theme
                         primary: '#10B981', // Emerald Green
                         secondary: '#34D399', // Medium Green
+                        tertiary: '#047857', // Darker Green for depth
                         accent: '#FCD34D', // Yellow for accents (unchanged, good contrast)
                         darkbg: '#1A202C', // Dark background
                         darktext: '#E2E8F0', // Light text on dark background
                         // Additional shades for subtle variations
                         greenlight: '#D1FAE5', // Very light green
                         greendark: '#065F46', // Darker green
+                        // Neutrals for clean look
+                        graylight: '#F8FAFC', // Very light gray
+                        graymedium: '#E2E8F0', // Medium light gray (body background)
+                        graydark: '#4A5568', // Darker gray for text
                     }
                 }
             }
@@ -46,7 +51,6 @@
             min-height: 100vh;
             background-color: #e2e8f0; /* Light grey background */
             color: #333;
-            /* Ensure body adapts to content for smaller screens */
             padding: 1rem; /* Add some padding around the app container */
             box-sizing: border-box; /* Include padding in element's total width and height */
         }
@@ -56,65 +60,81 @@
             left: 0;
             width: 100%;
             height: 100%;
-            background-color: #ffffff; /* White background for splash */
+            background: linear-gradient(135deg, #10B981, #34D399); /* Green gradient */
             display: flex;
+            flex-direction: column;
             justify-content: center;
             align-items: center;
             z-index: 1000;
             transition: opacity 0.5s ease-out;
+            color: white;
+            text-shadow: 0 2px 4px rgba(0,0,0,0.2);
         }
         #splash-screen.hidden {
             opacity: 0;
             pointer-events: none; /* Allows clicks through once hidden */
         }
         #splash-screen img {
-            width: 150px; /* Adjust size as needed */
-            height: 150px;
+            width: 180px; /* Larger logo */
+            height: 180px;
             border-radius: 50%; /* Make it circular */
             object-fit: cover;
-            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+            box-shadow: 0 8px 20px rgba(0, 0, 0, 0.3); /* Stronger shadow */
+            margin-bottom: 1.5rem;
+            animation: pulse 2s infinite ease-in-out; /* Add a subtle pulse animation */
         }
+        #splash-screen h1 {
+            font-size: 2.5rem;
+            font-weight: bold;
+        }
+        @keyframes pulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+            100% { transform: scale(1); }
+        }
+
         /* Main app container styling */
         #app-container {
             width: 100%;
-            max-width: 768px; /* Max width for better readability on larger screens (md breakpoint) */
+            max-width: 800px; /* Slightly wider max-width */
             background-color: #ffffff;
-            border-radius: 1.5rem; /* More rounded corners */
-            box-shadow: 0 15px 30px rgba(0, 0, 0, 0.15); /* Stronger shadow */
+            border-radius: 2rem; /* Even more rounded corners */
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.2); /* Stronger, softer shadow */
             overflow: hidden; /* Ensures rounded corners apply to children */
             display: none; /* Hidden by default, shown after splash */
             flex-direction: column;
             min-height: 90vh; /* Ensure it takes up a good portion of the screen */
+            border: 1px solid #E2E8F0; /* Subtle border */
         }
         /* Basic button styling for consistency */
         .btn {
-            @apply px-6 py-3 rounded-xl font-semibold shadow-md transition-all duration-200 ease-in-out;
+            @apply px-7 py-3.5 rounded-xl font-semibold shadow-lg transition-all duration-200 ease-in-out transform hover:scale-105 active:scale-95;
         }
         .btn-primary {
-            @apply bg-primary text-white hover:bg-secondary focus:outline-none focus:ring-2 focus:ring-primary focus:ring-opacity-75;
+            @apply bg-primary text-white hover:bg-secondary focus:outline-none focus:ring-4 focus:ring-primary focus:ring-opacity-50;
         }
         .btn-secondary {
-            @apply bg-gray-200 text-gray-800 hover:bg-gray-300 focus:outline-none focus:ring-2 focus:ring-gray-400 focus:ring-opacity-75;
+            @apply bg-gray-200 text-gray-800 hover:bg-gray-300 focus:outline-none focus:ring-4 focus:ring-gray-400 focus:ring-opacity-50;
         }
         .btn-green {
-            @apply bg-green-500 text-white hover:bg-green-600 focus:outline-none focus:ring-2 focus:ring-green-400 focus:ring-opacity-75;
+            @apply bg-green-600 text-white hover:bg-green-700 focus:outline-none focus:ring-4 focus:ring-green-400 focus:ring-opacity-50;
         }
         .btn-red {
-            @apply bg-red-500 text-white hover:bg-red-600 focus:outline-none focus:ring-2 focus:ring-red-400 focus:ring-opacity-75;
+            @apply bg-red-600 text-white hover:bg-red-700 focus:outline-none focus:ring-4 focus:ring-red-400 focus:ring-opacity-50;
         }
         .btn-yellow {
-            @apply bg-yellow-500 text-white hover:bg-yellow-600 focus:outline-none focus:ring-2 focus:ring-yellow-400 focus:ring-opacity-75;
+            @apply bg-yellow-500 text-white hover:bg-yellow-600 focus:outline-none focus:ring-4 focus:ring-yellow-400 focus:ring-opacity0;
         }
         /* Styling for the code editor area */
         .code-editor {
             background-color: #2D2D2D; /* Dark background for code */
             color: #F8F8F2; /* Light text for code */
-            padding: 1rem;
+            padding: 1.25rem; /* More padding */
             border-radius: 0.75rem; /* Slightly more rounded */
             font-family: 'Fira Code', 'Monaco', 'Consolas', 'monospace'; /* Monospaced font */
-            font-size: 0.9rem;
-            line-height: 1.5;
-            min-height: 180px; /* Taller editor */
+            font-size: 0.95rem; /* Slightly larger font */
+            line-height: 1.6;
+            min-height: 200px; /* Taller editor */
             white-space: pre-wrap; /* Preserves whitespace and wraps */
             word-break: break-all; /* Breaks long words */
             overflow-x: auto; /* Enables horizontal scrolling for long lines */
@@ -125,12 +145,12 @@
         .code-editor:focus {
             outline: none;
             border-color: #10B981; /* Green focus border */
-            box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.5); /* Green shadow on focus */
+            box-shadow: 0 0 0 4px rgba(16, 185, 129, 0.4); /* Green shadow on focus */
         }
         /* General content padding */
         .content-padding {
-            padding: 1.5rem;
-            @apply sm:p-8; /* More padding on larger screens */
+            padding: 2rem; /* Increased padding */
+            @apply sm:p-10; /* Even more padding on larger screens */
         }
         /* Modal styling */
         .modal-overlay {
@@ -139,7 +159,7 @@
             left: 0;
             width: 100%;
             height: 100%;
-            background-color: rgba(0, 0, 0, 0.7); /* Darker overlay */
+            background-color: rgba(0, 0, 0, 0.8); /* Darker, more opaque overlay */
             display: flex;
             justify-content: center;
             align-items: center;
@@ -154,16 +174,17 @@
         }
         .modal-content {
             background-color: #ffffff;
-            padding: 2rem;
+            padding: 2.5rem; /* More padding */
             border-radius: 1.5rem; /* More rounded */
-            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4); /* Stronger shadow */
+            box-shadow: 0 15px 40px rgba(0, 0, 0, 0.5); /* Stronger, deeper shadow */
             max-width: 90%;
-            width: 500px; /* Wider modal */
+            width: 600px; /* Wider modal */
             text-align: center;
             position: relative;
-            transform: translateY(-20px); /* Slight animation */
+            transform: translateY(-30px); /* More pronounced animation */
             opacity: 0;
             transition: transform 0.3s ease-out, opacity 0.3s ease-out;
+            border: 1px solid #E2E8F0; /* Subtle border */
         }
         .modal-overlay.active .modal-content {
             transform: translateY(0);
@@ -171,11 +192,11 @@
         }
         .modal-close-btn {
             position: absolute;
-            top: 0.75rem;
-            right: 0.75rem;
+            top: 1rem;
+            right: 1rem;
             background: none;
             border: none;
-            font-size: 1.8rem; /* Larger close button */
+            font-size: 2rem; /* Larger close button */
             cursor: pointer;
             color: #666;
             transition: color 0.2s ease-in-out;
@@ -187,29 +208,31 @@
         .radio-option {
             display: flex;
             align-items: center;
-            padding: 0.75rem 1rem;
-            border: 1px solid #E2E8F0; /* Light border */
+            padding: 1rem 1.25rem; /* More padding */
+            border: 2px solid #E2E8F0; /* Slightly thicker light border */
             border-radius: 0.75rem;
             cursor: pointer;
-            transition: background-color 0.2s ease-in-out, border-color 0.2s ease-in-out;
+            transition: background-color 0.2s ease-in-out, border-color 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
         }
         .radio-option:hover {
             background-color: #F0F2F5; /* Light hover effect */
+            border-color: #CBD5E1; /* Slightly darker border on hover */
         }
         .radio-option input[type="radio"] {
-            margin-right: 0.75rem;
+            margin-right: 1rem; /* More space */
             /* Custom radio button appearance */
             -webkit-appearance: none;
             -moz-appearance: none;
             appearance: none;
-            width: 1.25rem;
-            height: 1.25rem;
+            width: 1.4rem; /* Larger radio button */
+            height: 1.4rem;
             border: 2px solid #9CA3AF; /* Gray border */
             border-radius: 50%;
             outline: none;
             cursor: pointer;
             position: relative;
             flex-shrink: 0; /* Prevent shrinking */
+            transition: border-color 0.2s ease-in-out, background-color 0.2s ease-in-out;
         }
         .radio-option input[type="radio"]:checked {
             border-color: #10B981; /* Green border when checked */
@@ -218,8 +241,8 @@
         .radio-option input[type="radio"]:checked::before {
             content: '';
             display: block;
-            width: 0.5rem;
-            height: 0.5rem;
+            width: 0.6rem; /* Larger white dot inside */
+            height: 0.6rem;
             background-color: #ffffff; /* White dot inside */
             border-radius: 50%;
             position: absolute;
@@ -230,18 +253,18 @@
         .radio-option label {
             flex-grow: 1; /* Allow label to take available space */
             cursor: pointer;
-            font-size: 1.05rem;
+            font-size: 1.1rem; /* Slightly larger font */
             color: #4A5568;
         }
         /* Styling for correct/incorrect answers */
         .option-correct {
-            @apply bg-green-100 border-green-500 text-green-800;
+            @apply bg-green-100 border-green-500 text-green-800 shadow-md; /* Add shadow */
         }
         .option-incorrect {
-            @apply bg-red-100 border-red-500 text-red-800;
+            @apply bg-red-100 border-red-500 text-red-800 shadow-md; /* Add shadow */
         }
         .option-selected {
-             @apply bg-blue-100 border-blue-500 text-blue-800; /* Highlight selected option */
+             @apply bg-blue-50 border-blue-400 text-blue-700 shadow-sm; /* Highlight selected option */
         }
 
         /* Loading spinner for AI generation */
@@ -260,12 +283,13 @@
     <!-- Splash Screen -->
     <div id="splash-screen">
         <img src="images/my-pic.png" alt="HICKS BOZON404 Logo">
+        <h1>HICKS BOZON404</h1>
     </div>
 
     <!-- Main App Container -->
     <div id="app-container" class="relative flex flex-col">
         <!-- Header -->
-        <header class="bg-primary text-white p-4 text-center rounded-t-xl shadow-md">
+        <header class="bg-primary text-white p-4 text-center rounded-t-3xl shadow-md">
             <h1 class="text-3xl font-bold">HICKS BOZON404</h1>
         </header>
 
@@ -275,7 +299,7 @@
         </main>
 
         <!-- Footer (optional, could be for navigation or info) -->
-        <footer id="app-footer" class="bg-gray-100 p-4 text-center text-gray-600 rounded-b-xl shadow-inner">
+        <footer id="app-footer" class="bg-gray-100 p-4 text-center text-gray-600 rounded-b-3xl shadow-inner">
             <p>&copy; 2025 HICKS BOZON404. All rights reserved.</p>
         </footer>
 
@@ -283,8 +307,8 @@
         <div id="custom-modal" class="modal-overlay">
             <div class="modal-content">
                 <button class="modal-close-btn" onclick="app.closeModal()">&times;</button>
-                <p id="modal-message" class="text-lg mb-4"></p>
-                <div id="modal-actions" class="flex justify-center space-x-4">
+                <p id="modal-message" class="text-lg mb-4 text-gray-800"></p>
+                <div id="modal-actions" class="flex justify-center space-x-4 mt-6">
                     <button id="modal-confirm-btn" class="btn btn-primary hidden">Confirm</button>
                     <button id="modal-cancel-btn" class="btn btn-secondary hidden">Cancel</button>
                     <button id="modal-ok-btn" class="btn btn-primary hidden">OK</button>
@@ -297,4 +321,3 @@
     <script type="module" src="main.js"></script>
 </body>
 </html>
-s
